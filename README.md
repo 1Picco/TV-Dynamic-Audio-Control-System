@@ -1,5 +1,5 @@
 # TV Dynamic Audio Control System
-*Project still in development.
+*This project is still under active development, and any contributions or help are welcome!
 
 An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
