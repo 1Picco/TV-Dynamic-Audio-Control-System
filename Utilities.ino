@@ -466,12 +466,21 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 }
 
 
-/*
-                                   SAMSUNG
+/* 
+               TV model: SAMSUNG UE43RU7102KXXH
+               
+                  ACCES SAMSUNG SERVICE MENU 
+      INFO      +    SETTINGS    +      MUTE      +    POWER
+   0xE0E0F807   +   0xE0E058A7   +   0xE0E0F00F   +  0xE0E06798
 
-  SERVICE MENU -->     INFO      +    SETTINGS    +      MUTE      +    POWER
-                    0xE0E0F807   +   0xE0E058A7   +   0xE0E0F00F   +  0xE0E06798
 
+        SAMSUNG Parsed IR Parameters / Decoded IR Fields
+      
+ Parsed IR Parameters for Power button:
+  0x707 - Address (The Samsung device identifier, standard for Samsung TVs)
+   0x2  - Command Code (The specific button payload, e.g., Digit 2 or Source selection depending on the remote)
+    0   - Repeats / Flags (Indicates standard transmission with no extra key-hold repeat bursts)
+  
   POWER .... 0xE0E06798  <~>  IrSender.sendSamsung(0x707, 0x2, 0);
   SOURCE ... 0xE0E0807F  <~>  IrSender.sendSamsung(0x707, 0x1, 0);
   1 ........ 0xE0E020DF  <~>  IrSender.sendSamsung(0x707, 0x4, 0);
@@ -521,37 +530,6 @@ bool eepromWearLevelRead(int8_t baseAddress) {
   >>| ...... 0xE0E012ED  <~>  IrSender.sendSamsung(0x707, 0x48, 0);
 
 
-                               SAMSUNG
-
-  SERVICE MENU -->     INFO      +    SETTINGS    +      MUTE      +    POWER
-                    0xE0E0F807   +   0xE0E058A7   +   0xE0E0F00F   +  0xE0E06798
-
-  POWER    -->  0xE0E06798                   |    SOURCE   -->  0xE0E0807F
-  1        -->  0xE0E020DF                   |    2        -->  0xE0E0A05F
-  3        -->  0xE0E0609F                   |    4        -->  0xE0E010EF
-  5        -->  0xE0E0906F                   |    6        -->  0xE0E050AF
-  7        -->  0xE0E030CF                   |    8        -->  0xE0E0B04F
-  9        -->  0xE0E0708F                   |    0        -->  0xE0E08877
-  TTX/MIX  -->  0xE0E034CB                   |    PRE-CH   -->  0xE0E0C837
-  VOL+     -->  0xE0E0E01F                   |    VOL-     -->  0xE0E0D02F
-  CH+      -->  0xE0E048B7                   |    CH-      -->  0xE0E008F7
-  MUTE     -->  0xE0E0F00F                   |    CH LIST  -->  0xE0E0D629
-  NETFLIX  -->  0xE0E0CF30                   |    RAKUTEN  -->  0xE0E03DC2
-  PRIME    -->  0xE0E02FD0                   |    HOME     -->  0xE0E09E61
-  GUIDE    -->  0xE0E0F20D                   |    UP       -->  0xE0E006F9
-  DOWN     -->  0xE0E08679                   |    LEFT     -->  0xE0E0A659
-  RIGHT    -->  0xE0E046B9                   |    OK       -->  0xE0E016E9
-  RETURN   -->  0xE0E01AE5                   |    EXIT     -->  0xE0E0B44B
-  A        -->  0xE0E083EC                   |    B        -->  0xE0E028D7
-  C        -->  0xE0E0A857                   |    D        -->  0xE0E06897
-  SETTINGS -->  0xE0E058A7                   |    INFO     -->  0xE0E0F807
-  AD/SUBT. -->  0xE0E0A45B                   |    PLAY     -->  0xE0E0E21D
-  PAUSE    -->  0xE0E052AD                   |    STOP     -->  0xE0E0629D
-  |<<      -->  0xE0E0A25D                   |    >>|      -->  0xE0E012ED
-
-
-
-
                               PHILIPS
 
   POWER    -->  1000C          C           |    SOURCE   -->  10038          38
@@ -578,118 +556,5 @@ bool eepromWearLevelRead(int8_t baseAddress) {
   |<<      -->  1002B          2B          |    >>|      -->  10028          28
   STREAM   -->  100F5          F5          |    SEARCH   -->  100B4          B4
   RECORD   -->  10037          37
-
-
-
-  # RGBLed Arduino library
-
-  > This library for Arduino allows you to control RGB led.
-
-  ## Installation
-  [Installing Additional Arduino Libraries](https://www.arduino.cc/en/Guide/Libraries)
-
-  ## Usage
-  + Include library file header
-  ```cpp
-  #include <RGBLed.h>
-  ```
-
-  + Create an object, this object takes one parameter which corresponds to the analog pins are connected to on the Arduino.
-  ```cpp
-  RGBLed led(RED_PIN, GREEN_PIN, BLUE_PIN, RGBLed::COMMON_ANODE or RGBLed::COMMON_CATHODE);
-  ```
-
-  + Set color
-  ```cpp
-  led.setColor(RGBLed::RED);
-  // or
-  led.setColor(255, 0, 0);
-  ```
-
-  + Light off
-  ```cpp
-  led.off();
-  ```
-
-  + Set LED relative brightness level. (*Note: brightness level defaults to `100`.*)
-  ```cpp
-  led.brightness(50); // 50% brightness
-  ```
-
-  + Set brightness and color at the same time ()
-  ```cpp
-  led.brightness(RGBLed::RED, 50); // 50% brightness
-  // or
-  led.brightness(255, 0, 0, 50); // 50% brightness
-  ```
-
-  + Flash
-  ```cpp
-  // Single flash, no delay after
-  led.flash(R, G, B, onTime, 0, 1);
-
-  // Single flash with delay after
-  led.flash(R, G, B, onTime, offTime, 1);
-
-  // Multiple flashes with delays between and after
-  led.flash(R, G, B, onTime, offTime, count);
-
-  // RGB array version
-  uint8_t color[] = {R, G, B};
-  led.flash(color, onTime, offTime, count);
-
-  // Shortcut for equal on/off times
-  led.flash(R, G, B, duration, count);
-  ```
-
-  + Fade In or Out
-  ```cpp
-  led.fadeOut(RGBLed::RED, 5, 100); // Fade out with 5 steps during 100ms
-  // or
-  led.fadeOut(255, 0, 0, 5, 100); // Fade out with 5 steps during 100ms
-
-  led.fadeIn(RGBLed::RED, 5, 100); // Fade in with 5 steps during 100ms
-  // or
-  led.fadeIn(255, 0, 0, 5, 100); // Fade in with 5 steps during 100ms
-  ```
-
-  + Cross Fade between two colors
-  ```cpp
-  // Usage: led.crossFade(rgbFrom[3], rgbTo[3], steps, duration)
-  led.crossFade(RGBLed::RED, RGBLed::GREEN, 5, 100);  // Fade from RED to GREEN in 5 steps during 100ms
-  // or
-  // Usage: led.crossFade(fromR, fromG, fromB, toR, toG, toB, steps, duration)
-  led.crossFade(255, 0, 0, 0, 255, 0, 5, 100);    // Fade from RED to GREEN in 5 steps during 100ms
-  ```
-
-  + Set step (0-255) for specific color gradient between two colors
-  ```cpp
-  // Usage: led.gradient(rgbFrom[3], rgbTo[3], step)
-  led.gradient(RGBLed::RED, RGBLed::GREEN, 200);  // Color step 200 of Gradient from RED to GREEN
-  // or
-  // Usage: led.crossFade(fromR, fromG, fromB, toR, toG, toB, steps, duration)
-  led.gradient(255, 0, 0, 0, 255, 0, 200);     // Color step 200 of Gradient from RED to GREEN
-  ```
-
-  ## Colors
-  > You can create your own colors or use the followings colors
-  + RED
-  + GREEN
-  + BLUE
-  + MAGENTA
-  + CYAN
-  + YELLOW
-  + WHITE
-
-  How use colors ?
-  ```cpp
-  RGLed::RED
-  ```
-
-  ## Contributors
-
-  Thank you to all our [contributors](https://github.com/wilmouths/RGBLed/graphs/contributors)!
-
-  [![](https://contrib.rocks/image?repo=wilmouths/RGBLed)](https://github.com/wilmouths/RGBLed/graphs/contributors)
 
 */
