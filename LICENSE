@@ -1,0 +1,11 @@
+## License
+
+This repository contains both original project code and a modified version of the **RGBLed** library originally created by **wilmouths**.
+
+The modified RGBLed library is distributed under the **GNU General Public License v3 (GPLv3)**, as required by the original library's license.
+
+The original RGBLed source and its license are retained and the modifications are documented in the [Modified RGBLed Library](#modified-rgbled-library) section.
+
+Unless otherwise stated, the original source code developed specifically for this TV Dynamic Audio Control System has **no separate open-source license declared** and should be considered **all rights reserved by the author**.
+
+The GPLv3 license included with the RGBLed library applies to the RGBLed-derived code and does not by itself grant rights to unrelated original project code.
