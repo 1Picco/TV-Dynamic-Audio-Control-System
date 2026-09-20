@@ -647,11 +647,3 @@ The current V10.1 implementation focuses on:
 * persistent configuration
 
 The design intentionally favors a relatively direct Arduino implementation over large software abstractions, making the behavior of the physical device easier to inspect and modify.
-
----
-
-## License
-
-No specific open-source license is currently declared.
-
-Unless a license is added to the repository, the source should be considered **all rights reserved by the author**.
