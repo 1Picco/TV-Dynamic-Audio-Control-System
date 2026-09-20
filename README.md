@@ -596,7 +596,11 @@ These values can be adjusted to suit different hardware, room acoustics, TV beha
 
 ### Samsung compatibility
 
-The IR transmitter is designed around Samsung TV IR commands. Compatibility with a particular Samsung TV depends on the command set used by that TV.
+The Samsung IR command set used by this project has been developed and tested with the following TV model:
+
+**Samsung UE43RU7102KXXH**
+
+The Samsung IR codes used by the controller are therefore specifically verified with this model. Compatibility with other Samsung TV models may vary depending on the IR command set implemented by the particular TV.
 
 ### Remote compatibility
 
