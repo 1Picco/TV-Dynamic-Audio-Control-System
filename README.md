@@ -1,5 +1,6 @@
 # TV Dynamic Audio Control System
-*This project is still under active development, and any contributions or help are welcome!
+
+*This project is still under active development, and any contributions or help are welcome!*
 
 An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
@@ -166,6 +167,137 @@ White sequences are used to mark the beginning and end of the display.
 
 ---
 
+## Modified RGBLed Library
+
+This project uses a **modified version of the RGBLed Arduino library originally created by `wilmouths`**.
+
+**Original library:**
+https://github.com/wilmouths/RGBLed.git
+
+The original library is retained as the basis of the implementation. The project-specific modifications were made to better suit the ATmega328P, reduce unnecessary resource usage, remove floating-point calculations from timing-sensitive RGB operations, and add functionality required by this project.
+
+### Modifications
+
+#### 1. RGB color constants changed to `uint8_t` and `const`
+
+The predefined RGB colors were changed from mutable `int` arrays to constant 8-bit values.
+
+This better represents RGB data, which is inherently limited to the range `0–255`, and avoids allocating unnecessary storage for larger integer types.
+
+#### 2. RGB and pin parameters changed to `uint8_t`
+
+RGB values, brightness values, and LED pin parameters were changed from `int` to `uint8_t` where appropriate.
+
+This more accurately represents the actual hardware values and reduces memory requirements on the ATmega328P.
+
+#### 3. Brightness calculations changed to integer arithmetic
+
+Brightness calculations were changed to use integer arithmetic instead of unnecessary floating-point operations.
+
+The RGB LED only requires integer values between `0` and `255`, so floating-point precision provides no practical benefit here.
+
+#### 4. Floating-point calculations removed from `fade()`
+
+The original fade calculations used floating-point arithmetic.
+
+The modified implementation performs the fade using integer calculations instead.
+
+This reduces processing overhead and avoids pulling floating-point operations into a small AVR microcontroller application.
+
+#### 5. `flash()` supports multiple flashes
+
+The modified library adds a `count` parameter to the flash functions.
+
+Examples:
+
+```cpp
+led.flash(RGBLed::RED, 200);
+led.flash(RGBLed::RED, 200, 3);
+
+led.flash(150, 140, 0, 30);
+led.flash(150, 140, 0, 30, 100);
+led.flash(150, 140, 0, 30, 100, 3);
+```
+
+The extended form allows separate control of:
+
+* red
+* green
+* blue
+* LED ON duration
+* LED OFF duration
+* number of flashes
+
+For example:
+
+```cpp
+led.flash(150, 140, 0, 30, 0, 0);
+           │    │   │   │   │  │
+           │    │   │   │   │  └── count = 0 → automatically changed to 1
+           │    │   │   │   └───── duration = 0 ms OFF time
+           │    │   │   └───────── onDuration = 30 ms ON time
+           │    │   └───────────── blue = 0
+           │    └───────────────── green = 140
+           └────────────────────── red = 150
+```
+
+This produces one flash using RGB `(150, 140, 0)`, with the LED ON for 30 ms and no OFF delay.
+
+A `count` value below 1 is automatically treated as one flash.
+
+#### 6. Flash timing changed to `uint16_t`
+
+Flash timing values were changed to `uint16_t`.
+
+This provides a suitable range for millisecond timing while using an appropriate unsigned integer type for the application.
+
+#### 7. Fade loop modified for unsigned counters
+
+The fade loops were adjusted to use unsigned counters where appropriate.
+
+This better matches the non-negative nature of RGB brightness and timing values.
+
+#### 8. `crossFade()` converted from floating point to fixed-point/integer arithmetic
+
+The original `crossFade()` implementation used floating-point calculations.
+
+The modified implementation uses integer/fixed-point calculations instead.
+
+This significantly reduces floating-point processing on the ATmega328P while retaining the intended visual transition.
+
+#### 9. `crossFade()` protected against `steps = 0`
+
+The modified implementation explicitly protects against a zero-step fade.
+
+This prevents invalid calculations such as division by zero.
+
+#### 10. `gradient()` converted from floating point to integer arithmetic
+
+The gradient calculations were also converted from floating-point calculations to integer arithmetic.
+
+Again, this is sufficient because the final RGB output is limited to 8-bit values.
+
+#### 11. Additional RGB range protection
+
+The modified implementation includes explicit protection against RGB values exceeding the valid `0–255` range during calculations.
+
+### Result
+
+The modified RGBLed library retains the original library's basic functionality while being better suited to this project's resource-constrained AVR environment.
+
+The main goals of the modifications are:
+
+* lower memory usage
+* less unnecessary computation
+* elimination of floating-point calculations where they provide no useful benefit
+* safer handling of edge cases
+* additional flash-count functionality
+* compatibility with the project's RGB feedback system
+
+The modifications are project-specific and are maintained as part of this repository.
+
+---
+
 ## Battery
 
 The controller is powered by **one 18650 Li-ion cell**.
@@ -182,6 +314,27 @@ The Arduino can therefore:
 * measure battery voltage while charging is paused
 * manually toggle charging from the remote
 * remember the charging state through EEPROM
+
+### Why the system is battery powered
+
+The battery is not used simply because the project is intended to be portable.
+
+During development, several different **5 V phone chargers/power supplies were tested as direct power sources for the Arduino**.
+
+The tested power supplies introduced enough electrical/digital noise into the system to cause practical problems, including:
+
+* unstable Arduino behavior
+* false audio loudness triggers
+* interference with IR decoding
+* interference with IR transmission
+
+The audio detector and IR system are particularly sensitive to this type of interference.
+
+Using the 18650 battery as the actual power source provides a much cleaner and more stable supply for the controller.
+
+The phone charger is therefore used **only to charge the battery**. The Arduino continues to operate from the battery while charging is taking place.
+
+This arrangement provides a stable power input while still allowing the system to remain connected to a charger for automatic battery charging.
 
 ### Battery voltage measurement
 
@@ -408,11 +561,13 @@ The controller can therefore function simultaneously as:
 The current project uses:
 
 * **Arduino-IRremote**
-* **RGBLed**
+* **RGBLed** — based on the original library by [wilmouths](https://github.com/wilmouths/RGBLed.git)
 * standard Arduino `EEPROM`
 * AVR sleep/power functionality
 
 The current source uses the Arduino-IRremote 3.x programming interface.
+
+The RGBLed source included with this project contains project-specific modifications described in the [Modified RGBLed Library](#modified-rgbled-library) section.
 
 ---
 
@@ -453,11 +608,23 @@ The charging and protection circuitry must be appropriate for a single-cell 1865
 
 The approximately 100 mA load is part of the battery-voltage measurement system and should be implemented with suitable components and wiring.
 
+The battery is intentionally used as the controller's power source because direct operation from the tested 5 V phone chargers introduced unacceptable electrical noise into the system.
+
 ### Hardware-specific pins
 
 Changing the Arduino board or pin assignment requires corresponding changes in the source code.
 
 The current reference implementation is specifically developed around an **ATmega328P-based 3.3 V / 8 MHz Arduino Pro Mini** and its AVR peripherals.
+
+### RGBLed library attribution
+
+The RGBLed library used as the basis for the project's implementation was originally created by **wilmouths**.
+
+Original repository:
+
+https://github.com/wilmouths/RGBLed.git
+
+The RGBLed code in this project has been modified as described above. The original project remains credited as the basis of the library.
 
 ---
 
