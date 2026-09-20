@@ -169,12 +169,16 @@ White sequences are used to mark the beginning and end of the display.
 
 ## Modified RGBLed Library
 
-This project uses a **modified version of the RGBLed Arduino library originally created by `wilmouths`**.
+This project includes a modified version of the **RGBLed Arduino library** originally created by **wilmouths**.
 
-**Original library:**
+Original repository:
+
 https://github.com/wilmouths/RGBLed.git
 
-The original library is retained as the basis of the implementation. The project-specific modifications were made to better suit the ATmega328P, reduce unnecessary resource usage, remove floating-point calculations from timing-sensitive RGB operations, and add functionality required by this project.
+The original RGBLed library is licensed under the **GNU General Public License v3 (GPLv3)**. The original license and copyright notices are retained with the library.
+
+The RGBLed library included in this project has been modified to suit the requirements of this project. The modifications are documented in the source code and remain licensed under **GPLv3**.
+
 
 ### Modifications
 
@@ -647,17 +651,3 @@ The current V10.1 implementation focuses on:
 * persistent configuration
 
 The design intentionally favors a relatively direct Arduino implementation over large software abstractions, making the behavior of the physical device easier to inspect and modify.
-
-## License
-
-This project includes a modified version of the **RGBLed Arduino library**, originally created by **wilmouths**.
-
-Original repository:
-
-https://github.com/wilmouths/RGBLed.git
-
-The original RGBLed library is licensed under the **GNU General Public License v3 (GPLv3)**.
-
-The RGBLed library included in this project is a modified version of the original library and remains licensed under **GPLv3**.
-
-The complete GPLv3 license is included in the `LICENSE` file.
