@@ -171,13 +171,14 @@ White sequences are used to mark the beginning and end of the display.
 
 This project includes a modified version of the **RGBLed Arduino library** originally created by **wilmouths**.
 
-Original repository:
+## License
 
-https://github.com/wilmouths/RGBLed.git
+This project is licensed under the **GNU General Public License v3.0** (GPL-3.0) — see the [LICENSE](LICENSE) file for details.
 
-The original RGBLed library is licensed under the **GNU General Public License v3 (GPLv3)**. The original license and copyright notices are retained with the library.
+### Included Third-Party Libraries
 
-The RGBLed library included in this project has been modified to suit the requirements of this project. The modifications are documented in the source code and remain licensed under **GPLv3**.
+* **RGBLed**: Based on the original library by [wilmouths](https://github.com/wilmouths/RGBLed.git) under **GNU GPLv3**. Includes custom performance and memory optimizations for AVR microcontrollers.
+* **Arduino-IRremote**: Used under its respective open-source license.
 
 
 ### Modifications
