@@ -363,7 +363,7 @@ Normal battery measurements are performed periodically rather than continuously.
 
 ### Charging control
 
-The current firmware uses:
+The current code uses:
 
 * approximately **3.45 V** as the low-voltage charging-start threshold
 * approximately **4.15 V** as the charging-stop threshold
