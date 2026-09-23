@@ -2,13 +2,13 @@
 
 *This project is still under active development, and any contributions or help are welcome!*
 
-An Arduino based **automatic TV audio controller and IR remote bridge**.
+An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
 ## Why This Project Exists
 
 TV audio can vary significantly in volume between different scenes and programs. This can be especially noticeable with modern movies, which are often produced in 5.1 or 7.1 surround sound and then downmixed to the TV's stereo speakers.
 
-For example, a movie may have a scene where people are talking at a comfortable volume, with the TV set to volume 15. When the scene suddenly changes to shooting, explosions, or other loud action, the audio can become far too loud. The viewer then has to manually lower the volume. When the movie returns to normal dialogue, the volume needs to be raised again.
+For example, a movie may have a scene with normal dialogue at a comfortable volume level. When the action suddenly picks up with gunshots or explosions, the audio can become far too loud. The viewer then has to manually lower the volume. When the movie returns to normal dialogue, the volume needs to be raised again.
 
 This repeated volume adjustment is inconvenient and takes away from the viewing experience.
 
@@ -20,7 +20,7 @@ The device is intended to handle those sudden transitions between normal dialogu
 
 ## Limitations of Microphone-Based Detection and Safeguards
 
-The loud-audio detection is performed using a microphone, which means the system cannot distinguish between loud TV audio and other loud sounds in the room. For example, a conversation near the microphone can also be detected as loud audio and may trigger an automatic volume reduction.
+Audio level detection is performed using a microphone. which means the system cannot distinguish between loud TV audio and other loud sounds in the room. For example, a conversation near the microphone can also be detected as loud audio and may trigger an automatic volume reduction.
 
 To account for this limitation, automatic volume control can be disabled when it is not needed. When automatic volume control is disabled, the device sets the LED to a low-intensity red and uses a slow breathing effect that gradually transitions from the base red to white and back to red.
 
@@ -29,7 +29,7 @@ The automatic volume reduction is also limited to a maximum of **5 volume steps 
 
 It also works as an **IR remote translator**: any existing remote control can be used to control the project, while the project translates selected commands into Samsung IR commands for the TV. This makes it possible to use a remote from any manufacturer to control a Samsung TV, while also assigning additional remote buttons to functions of the project itself.
 
-The original hardware is built around an **Arduino Pro Mini 3.3 V / 8 MHz / ATmega328P**, a single protected 18650 Li-ion cell, an electret microphone with MCP6002 (or LM358 as a more common alternative)-based peak/noise detector, an IR receiver/transmitter, and a common-anode RGB LED.
+The original hardware is built around an Arduino Pro Mini (3.3V / 8MHz / ATmega328P), a single protected 18650 Li-ion cell, an electret microphone with an MCP6002 peak/noise detector (or LM358 as a common alternative), an IR receiver/transmitter, and a common-anode RGB LED.
 
 ---
 
@@ -343,7 +343,7 @@ The Arduino can therefore:
 
 ### Why the system is battery powered
 
-The battery is not used simply because the project is intended to be portable.
+The battery isn't used merely to make the project portable.
 
 During development, several different **5 V phone chargers/power supplies were tested as direct power sources for the Arduino**.
 
@@ -362,7 +362,7 @@ The phone charger is therefore used **only to charge the battery**. The Arduino 
 
 This arrangement provides a stable power input while still allowing the system to remain connected to a charger for automatic battery charging.
 
-### Battery voltage measurement
+### Battery Voltage Display
 
 Battery voltage is measured through a resistor divider connected to analog input `A3`.
 
