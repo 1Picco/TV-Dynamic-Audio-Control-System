@@ -4,6 +4,14 @@
 
 An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
+## Credits and Inspiration
+
+This project was built upon and inspired by previous community projects:
+
+* **Hardware & Concept Inspiration:** Inspired by the automatic volume control project created by popular tech YouTuber [GreatScott!](https://www.youtube.com/@greatscottlab).
+* **Software Inspiration:** Based on the logic and concepts from the [MovieVolumeAdjust](https://github.com/cobrce/MovieVolumeAdjust.git) project by GitHub user [cobrce](https://github.com/cobrce).
+
+
 ## Why This Project Exists
 
 TV audio can vary significantly in volume between different scenes and programs. This can be especially noticeable with modern movies, which are often produced in 5.1 or 7.1 surround sound and then downmixed to the TV's stereo speakers.
