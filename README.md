@@ -4,11 +4,32 @@
 
 An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
-The system monitors audio from a TV or other audio source and automatically lowers the TV volume when sustained loud audio is detected, then restores the original volume when the audio becomes quiet again.
+## Why This Project Exists
 
-It also works as an **IR remote translator**: an existing remote control can be used to control the project, while the project translates selected commands into Samsung IR commands for the TV. This makes it possible to use a remote from one manufacturer to control a Samsung TV, while also assigning additional remote buttons to functions of the project itself.
+TV audio can vary significantly in volume between different scenes and programs. This can be especially noticeable with modern movies, which are often produced in 5.1 or 7.1 surround sound and then downmixed to the TV's stereo speakers.
 
-The original hardware is built around an **Arduino Pro Mini 3.3 V / 8 MHz / ATmega328P**, a single protected 18650 Li-ion cell, an electret microphone with an LM358-based peak/noise detector, an IR receiver/transmitter, and a common-anode RGB LED.
+For example, a movie may have a scene where people are talking at a comfortable volume, with the TV set to volume 15. When the scene suddenly changes to shooting, explosions, or other loud action, the audio can become far too loud. The viewer then has to manually lower the volume. When the movie returns to normal dialogue, the volume needs to be raised again.
+
+This repeated volume adjustment is inconvenient and takes away from the viewing experience.
+
+This device is designed to automate that volume adjustment.
+
+It primarily monitors the audio coming from the TV and detects when the audio remains unusually loud for a sustained period. When loud audio is detected, it automatically lowers the TV volume. Once the audio returns to a quieter level, it restores the volume to its previous setting.
+
+The device is intended to handle those sudden transitions between normal dialogue and loud action without requiring the viewer to constantly reach for the remote.
+
+## Limitations of Microphone-Based Detection and Safeguards
+
+The loud-audio detection is performed using a microphone, which means the system cannot distinguish between loud TV audio and other loud sounds in the room. For example, a conversation near the microphone can also be detected as loud audio and may trigger an automatic volume reduction.
+
+To account for this limitation, automatic volume control can be disabled when it is not needed. When automatic volume control is disabled, the device sets the LED to a low-intensity red and uses a slow breathing effect that gradually transitions from the base red to white and back to red.
+
+The automatic volume reduction is also limited to a maximum of **5 volume steps per detection**, preventing a false detection from causing an excessive volume reduction.
+
+
+It also works as an **IR remote translator**: any existing remote control can be used to control the project, while the project translates selected commands into Samsung IR commands for the TV. This makes it possible to use a remote from any manufacturer to control a Samsung TV, while also assigning additional remote buttons to functions of the project itself.
+
+The original hardware is built around an **Arduino Pro Mini 3.3 V / 8 MHz / ATmega328P**, a single protected 18650 Li-ion cell, an electret microphone with MCP6002 (or LM358 as a more common alternative)-based peak/noise detector, an IR receiver/transmitter, and a common-anode RGB LED.
 
 ---
 
@@ -43,9 +64,9 @@ The audio processing is intentionally non-blocking during normal operation and u
 
 The microphone is an **electret microphone**.
 
-An **LM358** circuit is used primarily as a **peak/noise detector**, rather than as a conventional audio amplifier.
+**MCP6002** circuit is used primarily as a **peak/noise detector**, rather than as a conventional audio amplifier.
 
-The LM358 output is connected directly to the Arduino's analog audio input.
+The MCP6002 output is connected directly to the Arduino's analog audio input.
 
 The software interprets the analog signal relative to two thresholds:
 
@@ -425,21 +446,21 @@ The project uses EEPROM update operations to avoid unnecessary writes when a sto
 
 The reference hardware uses the following connections:
 
-| Arduino pin | Function                         |
-| ----------- | -------------------------------- |
-| `A0`        | LM358 audio/peak-detector output |
-| `A1`        | 10 kΩ Reaction potentiometer     |
-| `A2`        | 10 kΩ Deadband potentiometer     |
-| `A3`        | Battery-voltage divider          |
-| `D2`        | IR receiver                      |
-| `D3`        | IR transmitter                   |
-| `D4`        | TP4056 charging control          |
-| `D5`        | Hardware reset transistor        |
-| `D7`        | Battery-load MOSFET              |
-| `D10`       | RGB LED red                      |
-| `D6`        | RGB LED green                    |
-| `D9`        | RGB LED blue                     |
-| `D11`       | Tone output                      |
+| Arduino pin | Function                           |
+| ----------- | ---------------------------------- |
+| `A0`        | MCP6002 audio/peak-detector output |
+| `A1`        | 10 kΩ Reaction potentiometer       |
+| `A2`        | 10 kΩ Deadband potentiometer       |
+| `A3`        | Battery-voltage divider            |
+| `D2`        | IR receiver                        |
+| `D3`        | IR transmitter                     |
+| `D4`        | TP4056 charging control            |
+| `D5`        | Hardware reset transistor          |
+| `D7`        | Battery-load MOSFET                |
+| `D10`       | RGB LED red                        |
+| `D6`        | RGB LED green                      |
+| `D9`        | RGB LED blue                       |
+| `D11`       | Tone output                        |
 
 The RGB LED is a single **common-anode RGB LED**; no RGB driver module is required.
 
@@ -459,7 +480,7 @@ The software uses AVR-specific functionality for sleep and peripheral power cont
 ### Audio
 
 * Electret microphone
-* LM358 peak/noise detector
+* MCP6002 peak/noise detector
 * Audio detector output connected to `A0`
 
 ### Battery
@@ -529,7 +550,7 @@ The overall system can be viewed as four cooperating subsystems:
                    │   Electret Microphone│
                    └──────────┬───────────┘
                               │
-                         LM358 detector
+                       MCP6002 detector
                               │
                               ▼
                     ┌──────────────────┐
@@ -540,12 +561,12 @@ The overall system can be viewed as four cooperating subsystems:
                     │ IR translator    │
                     │ Power management │
                     │ RGB feedback     │
-                    └───────┬─────┬────┘
-                            │     │
+                    └────┬────────┬────┘
+                         │        │
                      Samsung IR   │
-                            │     │
-                            ▼     ▼
-                           TV    RGB LED
+                         │        │
+                         ▼        ▼
+                        TV     RGB LED
 ```
 
 The IR remote provides both TV-control commands and commands for the controller itself.
