@@ -10,7 +10,7 @@ This project was built upon and inspired by previous community projects:
 
 *This project is still under active development, and any contributions or help are welcome!*
 
-An Arduino-based **automatic TV-audio controller and IR remote bridge**.
+An Arduino-based **automatic TV audio controller and IR remote bridge**.
 
 ## Why This Project Exists
 
