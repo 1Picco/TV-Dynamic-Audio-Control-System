@@ -1,9 +1,3 @@
-# TV Dynamic Audio Control System
-
-*This project is still under active development, and any contributions or help are welcome!*
-
-An Arduino-based **automatic TV-audio controller and IR remote bridge**.
-
 ## Credits and Inspiration
 
 This project was built upon and inspired by previous community projects:
@@ -11,6 +5,12 @@ This project was built upon and inspired by previous community projects:
 * **Hardware & Concept Inspiration:** Inspired by the automatic volume control project created by popular tech YouTuber [GreatScott!](https://www.youtube.com/@greatscottlab).
 * **Software Inspiration:** Based on the logic and concepts from the [MovieVolumeAdjust](https://github.com/cobrce/MovieVolumeAdjust.git) project by GitHub user [cobrce](https://github.com/cobrce).
 
+
+# TV Dynamic Audio Control System
+
+*This project is still under active development, and any contributions or help are welcome!*
+
+An Arduino-based **automatic TV-audio controller and IR remote bridge**.
 
 ## Why This Project Exists
 
