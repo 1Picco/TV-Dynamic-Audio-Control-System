@@ -175,53 +175,88 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 }
 
 // ============================================================================
-// Function to provide LED feedback based on system state and battery voltage
-// Controls RGB LED colors and patterns for different system modes
-
+// Function to provide LED feedback based on system state and battery voltage.
+// Controls RGB LED colors and patterns for different system modes.
 // ============================================================================
+
 // Display RGB feedback based on battery voltage and operating mode.
 
 void FEEDBACK_MODE(byte mode) {
 
-  // Exit if RGB feedback should not be shown.
-  // NOTE: Changed to !FIRST_VOLTAGE_READING_TAKEN so it runs once reading is valid
+  // Do not show battery feedback while charging, while charging is paused,
+  // when remote control mode is inactive, when volume control is inactive,
+  // or while the TV volume is being automatically restored.
   if (CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
       !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
 
-  // Check deadband BEFORE taking an ADC reading to avoid unnecessary work
+  // Battery status feedback is only updated when the deadband counter
+  // has expired, preventing unnecessary repeated LED updates.
   if (mode == BATTERY_VOLTAGE_STATUS && DEADBAND_COUNTER != 0) return;
 
-  // Determine voltage to use (in millivolts)
+  // Use the most recently measured battery voltage.
   uint16_t currentVoltage_mV = VOLTAGE;
 
   switch (mode) {
 
+    // ------------------------------------------------------------------------
+    // BLINK
+    // Used for IR feedback.
+    // Repeating IR commands show a steady battery-status color.
+    // Non-repeating valid IR commands produce a short color flash.
+    // ------------------------------------------------------------------------
+
     case BLINK:
       if (IR_CODE_REPEATING) {
+
+        // Battery voltage >= 3.56 V: green
+        // Battery voltage >= 3.50 V: yellow
+        // Battery voltage <  3.50 V: red
         if (currentVoltage_mV >= 3560) led.setColor(0, 200, 20);
         else if (currentVoltage_mV >= 3500) led.setColor(200, 200, 0);
         else led.setColor(200, 20, 30);
+
       } else {
+
+        // Valid non-repeating IR command: briefly flash the
+        // color corresponding to the current battery voltage.
         if (currentVoltage_mV >= 3560) led.flash(0, 255, 0, 30, 0, 0);
         else if (currentVoltage_mV >= 3500) led.flash(150, 140, 0, 30, 0, 0);
         else led.flash(250, 0, 0, 30, 0, 0);
       }
       break;
 
+    // ------------------------------------------------------------------------
+    // BATTERY_VOLTAGE_STATUS
+    // Display the current battery status using fade-in to color.
+    // ------------------------------------------------------------------------
+
     case BATTERY_VOLTAGE_STATUS:
+
+      // Battery voltage >= 3.56 V: green
+      // Battery voltage >= 3.50 V: orange
+      // Battery voltage <  3.50 V: red
       if (currentVoltage_mV >= 3560) led.fadeIn(0, 100, 10, 35, 165);
       else if (currentVoltage_mV >= 3500) led.fadeIn(100, 50, 0, 35, 165);
       else led.fadeIn(100, 10, 0, 35, 165);
       break;
 
+    // ------------------------------------------------------------------------
+    // RGB_LED_OFF
+    // Fade out the current battery-status color.
+    // The color used for the fade-out corresponds to the current voltage.
+    // ------------------------------------------------------------------------
+
     case RGB_LED_OFF:
+
+      // Battery voltage >= 3.56 V: green
+      // Battery voltage >= 3.50 V: orange
+      // Battery voltage <  3.50 V: red
       if (currentVoltage_mV >= 3560) led.fadeOut(0, 100, 10, 30, 1000);
       else if (currentVoltage_mV >= 3500) led.fadeOut(100, 50, 0, 30, 1000);
       else led.fadeOut(100, 10, 0, 30, 1000);
       break;
   }
 }
-
 // ============================================================================
 // DEADBAND_FEEDBACK — shows battery charge level as an LED color: green for
 // high voltage, orange for mid voltage, red for low voltage.
@@ -261,7 +296,7 @@ static inline void FADE(
 // ============================================================================
 void DEADBAND_FEEDBACK() {
 
-  if (!VOLUME_CONTROL_ACTIVE        || CHARGING_ACTIVE || 
+  if (!VOLUME_CONTROL_ACTIVE        || CHARGING_ACTIVE ||
       VOLUME_REDUCTION_COUNTER != 0 || DEADBAND_COUNTER == 0) return;
 
   uint16_t voltage = VOLTAGE;
@@ -279,39 +314,50 @@ void DEADBAND_FEEDBACK() {
     if      (DEADBAND_COUNTER > 0) FADE(100,   0,  10,  75,   0, 250);
     else if (DEADBAND_COUNTER < 0) FADE(100,  75,  10,   0,   0, 150);
   }
-  
+
 }
 
 // ============================================================================
-// Function to control IR feedback LED timing
-// Turns off LED feedback after specified delay following IR command
+// Function to control the delay before returning to battery-status feedback.
+// After the specified time following an IR command, restore the normal
+// battery-voltage LED feedback.
+// ============================================================================
 
 void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
   uint32_t FEEDBACK_LED_OFF_TIME = (MINUTES + SECONDS);
 
   if (FEEDBACK_OFF_ACTIVE) {
-    FEEDBACK_OFF_AFTER_IR_DETECTED_TIME = millis() - FEEDBACK_OFF_START_TIME;  // Calculate elapsed time
 
-    if (FEEDBACK_OFF_AFTER_IR_DETECTED_TIME >= FEEDBACK_LED_OFF_TIME) {  // Check if delay period has elapsed
-      FEEDBACK_OFF_ACTIVE = false;  // Disable timer
-      FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);  // Show battery status LED feedback
+    // Calculate the elapsed time since the feedback-off timer was started.
+    FEEDBACK_OFF_AFTER_IR_DETECTED_TIME = millis() - FEEDBACK_OFF_START_TIME;
+
+    // When the delay has elapsed, stop the timer and restore
+    // the normal battery-status LED feedback.
+    if (FEEDBACK_OFF_AFTER_IR_DETECTED_TIME >= FEEDBACK_LED_OFF_TIME) {
+      FEEDBACK_OFF_ACTIVE = false;
+      FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
     }
   }
 }
 
 // ============================================================================
-// Function to control LED feedback duration
-// Keeps LED feedback active for specified time period
+// Function to control the duration of temporary LED feedback.
+// After the specified time, turn off the current feedback indication.
+// ============================================================================
 
 void FEEDBACK_ON(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
   uint32_t FEEDBACK_LED_ON_TIME = (MINUTES + SECONDS);
 
   if (FEEDBACK_LED_ACTIVE) {
-    RGB_FEEDBACK_ACTIVE_TIME = millis() - RGB_FEEDBACK_START_TIME;  // Calculate elapsed time
 
-    if (RGB_FEEDBACK_ACTIVE_TIME >= FEEDBACK_LED_ON_TIME) {  // Check if stay-on period has elapsed
-      FEEDBACK_LED_ACTIVE = false;  // Disable timer
-      FEEDBACK_MODE(RGB_LED_OFF);  // Turn off LED feedback
+    // Calculate the elapsed time since the feedback-on timer was started.
+    RGB_FEEDBACK_ACTIVE_TIME = millis() - RGB_FEEDBACK_START_TIME;
+
+    // When the feedback duration has elapsed, stop the timer and
+    // fade out the current LED feedback.
+    if (RGB_FEEDBACK_ACTIVE_TIME >= FEEDBACK_LED_ON_TIME) {
+      FEEDBACK_LED_ACTIVE = false;
+      FEEDBACK_MODE(RGB_LED_OFF);
     }
   }
 }
