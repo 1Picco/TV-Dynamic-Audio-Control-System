@@ -1,94 +1,21 @@
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-// Function to print remaining time until the next battery check
 
-void PRINT_COUNTDOWN() {
-  if (FIRST_VOLTAGE_READING_TAKEN) return;
-
-  static unsigned long lastPrintMillis = 0;
-  static bool labelPrinted = false;
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - lastPrintMillis >= SECONDS(1)) {
-    lastPrintMillis = currentMillis;
-
-    unsigned long elapsed = currentMillis - PREVIOUS_VOLTAGE_READING;
-
-    if (TIME_TO_READ_BATTERY_VOLTAGE > elapsed) {
-      unsigned long remainingSeconds = (TIME_TO_READ_BATTERY_VOLTAGE - elapsed) / 1000UL;
-      unsigned long minutes = remainingSeconds / 60;
-      unsigned long seconds = remainingSeconds % 60;
-
-      // Print the prefix label only once at the start of the countdown
-      if (!labelPrinted) {
-        info.print(F("Next voltage reading in: "));
-        labelPrinted = true;
-      }
-
-      // \r moves cursor back to start of line, \x1B[K clears to end of line if needed
-      info.print(F("\rNext voltage reading in: "));
-      if (minutes < 10) info.print(F("0"));
-      info.print(minutes);
-      info.print(F(":"));
-      if (seconds < 10) info.print(F("0"));
-      info.print(seconds);
-      // NOTE: Use info.print(), NOT info.println() so it stays on the same line!
-    } else {
-      labelPrinted = false; // Reset for next cycle
-    }
-  }
-}
-
-void PRINT_CHARGE_CHECK_COUNTDOWN() {
-  // Only print when active charging is ongoing and not currently paused for measurement
-  if (!CHARGING_ACTIVE || CHARGING_PAUSED) return;
-
-  static unsigned long lastPrintMillis = 0;
-  static bool labelPrinted = false;
-  unsigned long currentMillis = millis();
-
-  // Tick once per second
-  if (currentMillis - lastPrintMillis >= SECONDS(1)) {
-    lastPrintMillis = currentMillis;
-
-    unsigned long elapsed = currentMillis - LAST_TIME_VOLTAGE_READING;
-
-    if (TIME_TO_CHECK_BATTERY_CHARGE_STATE > elapsed) {
-      unsigned long remainingSeconds = (TIME_TO_CHECK_BATTERY_CHARGE_STATE - elapsed) / 1000UL;
-      unsigned long minutes = remainingSeconds / 60;
-      unsigned long seconds = remainingSeconds % 60;
-
-      // Print the prefix label only once at the start of the countdown
-      if (!labelPrinted) {
-        info.print(F("Next charge check in: "));
-        labelPrinted = true;
-      }
-
-      // \r moves cursor back to start of line
-      info.print(F("\rNext charge check in: "));
-      if (minutes < 10) info.print(F("0"));
-      info.print(minutes);
-      info.print(F(":"));
-      if (seconds < 10) info.print(F("0"));
-      info.print(seconds);
-    } else {
-      labelPrinted = false; // Reset for next cycle
-    }
-  }
-}
+// IR SIGNAL FILTER
 // ============================================================================
-// Function to filter valid IR commands
+// Filters incoming IR signals and prepares valid commands for processing.
+// Rejects unwanted protocols, invalid values, and signals received too quickly.
 
 bool SIGNAL_FILTER() {
 
-  // Ignore Samsung TV remotes and protocol 14 (phone proximity sensor)
+  // Ignore Samsung TV remotes and protocol 14.
   if (results.decode_type == SAMSUNG || results.decode_type == 14) {
     irrecv.resume();
     return false;
   }
 
-  // Reject unsupported (NEC), unknown, or oversized raw values
+  // Reject unsupported NEC signals, unknown protocols, or oversized values.
   if (results.decode_type == NEC || results.decode_type == UNKNOWN || results.value > 0xFFFFF) {
     led.flash(30, 30, 250, 35, 80, 2); // Purple error blink
     MY_TONE(3800, 10, 2);
@@ -96,17 +23,17 @@ bool SIGNAL_FILTER() {
     return false;
   }
 
-  // Rate-limiting debounce check
+  // Ignore signals received too soon after the previous processed signal.
   unsigned long now = millis();
   if ((now - LAST_PROCESSED_SIGNAL_TIME) < MIN_SIGNAL_INTERVAL) {
     irrecv.resume();
     return false;
   }
 
-  // Convert long IR code to single-byte command (implicit truncation if FILTERED_CODE is byte)
+  // Use the command byte from the received IR value.
   FILTERED_CODE = (byte)(results.value & 0xFF);
 
-  // Detect repeating hold-down command vs new command
+  // Detect repeated commands, such as holding down a remote button.
   if (FILTERED_CODE == LAST_IR_CODE) {
     CONSECUTIVE_IR_CODE_COUNT++;
     if (CONSECUTIVE_IR_CODE_COUNT > 9) {
@@ -118,18 +45,22 @@ bool SIGNAL_FILTER() {
     LAST_IR_CODE = FILTERED_CODE;
   }
 
-  // Timestamp updates
+  // Record the time of the accepted signal.
   LAST_IR_SIGNAL_TIME = now;
   LAST_PROCESSED_SIGNAL_TIME = now;
 
+  // Reset feedback timers because a valid IR command was received.
   RESET_FEEDBACK_TIMERS();
 
   return true; // Valid signal ready
 }
 
 // ============================================================================
-// IR CODE LOOKUP TABLE - Stored in Flash memory (PROGMEM) to save RAM
+// IR CODE LOOKUP TABLE
 // ============================================================================
+// Maps Philips remote commands to the corresponding Samsung TV commands.
+// Both tables use the same index for each command pair.
+// Stored in Flash memory (PROGMEM) to save RAM.
 
 const uint8_t PHILIPS_CODES[] PROGMEM = {
   0x21, 0x20, 0x40, 0x54, 0x5C, 0x58,
@@ -150,11 +81,13 @@ const byte IR_TO_SAMSUNG_SIZE = 24;
 // ============================================================================
 // REMOTE CONTROL FUNCTIONS
 // ============================================================================
-// Function to send Samsung TV IR commands
+// Send a Samsung IR command to the TV.
+// The command can be supplied directly or read from the SAMSUNG_CMD lookup table.
 
 void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
   uint8_t command = cmd;
 
+  // When lookup mode is used, cmd is the index of the required Samsung command.
   if (use_lookup) {
     if (cmd < IR_TO_SAMSUNG_SIZE) {
       command = pgm_read_byte(&SAMSUNG_CMD[cmd]);
@@ -162,16 +95,26 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
       return;  // Invalid index
     }
   }
+
+  // Stop receiving IR while transmitting the Samsung command.
   IrReceiver.stop();
+
+  // Send one Samsung command to the TV.
+  // 0x707 is the Samsung address used by this TV.
   //delay(MS(1));
   IrSender.sendSamsung(0x707, command, 1);
+
+  // Allow the transmission to finish before restarting IR reception.
   delay(MS(1));
   IrReceiver.start();
 }
 
 // ============================================================================
-// Function to decode IR remote signal
-// Prints protocol, address, command and decodedRawData
+// IR CODE DECODE FUNCTION
+// ============================================================================
+// Decodes one received IR signal and prints its protocol, address, command,
+// and raw data to Serial Monitor.
+// Used to identify and inspect IR codes when testing remote controls.
 
 void rawCode() {
   if (IrReceiver.decode()) {
@@ -311,79 +254,104 @@ void MY_TONE_REPEAT(uint16_t frequency, uint8_t duration, uint8_t beepCount, uns
 // ============================================================================
 // ADC PEAK DETECTION - Optimized for dynamic audio content
 // ============================================================================
+// Reads the audio peak and filters out the quiet audio range around the
+// microphone's normal output level.
 
 uint16_t analogReadFiltered() {
 
   uint16_t peak = analogRead(PIN_AUDIO);
 
-  // filter: if peak is within noise range, treat as 0
+  // Treat quiet audio between 480 and 520 as the baseline level.
+  // Keep the returned value within 498-502 so small baseline variations
+  // do not affect the audio detection logic.
   if (peak > 480 && peak < 520) {
-    return constrain(peak, 498, 502);  // filtered out noise
+    return constrain(peak, 498, 502);
   }
-  // loud audio, return real peak
+
+  // Return the actual peak when it is outside the quiet audio range.
   return peak;
 }
 
 // ============================================================================
+// ANALOG INPUT READING
+// ============================================================================
+// Reads the Reaction and Deadband potentiometers at regular intervals.
+// Deadband is only updated from the potentiometer when no manual adjustment
+// has been made through the remote control.
+
 AsyncDelay READ_ANALOG_DATADelay;  // Timer for reading analog values
-// Function to read analog values from potentiometers
-// Reads reactivity and DEADBAND potentiometers and updates system parameters
 
 void READ_ANALOG_DATA(bool READ_NOW = false) {
 
   auto now = millis();
 
+  // Read the potentiometers when the interval has elapsed,
+  // or immediately when a forced reading is requested.
   if (READ_NOW || READ_ANALOG_DATADelay.Reached(ANALOG_READ_DELAY_MS)) {
-    // Read and validate potentiometer values
+
     int16_t rawDEADBAND = analogRead(PIN_DEADBAND);
-    int16_t rawREACT = analogRead(PIN_REACT);
+    int16_t rawREACT    = analogRead(PIN_REACT);
 
-    // Only update DEADBAND from potentiometer if no manual adjustments have been made
-    // DEADBAND_COUNTER != 0 means user has manually adjusted DEADBAND via remote
+    // Update DEADBAND from the potentiometer only when it has not
+    // been manually adjusted through the remote control.
     if (DEADBAND_COUNTER == 0) {
-      DEADBAND = map(rawDEADBAND, 0, 1023, 550, 20);  // Map potentiometer to DEADBAND range
-      DEADBAND = constrain(DEADBAND, 20, 550);  // Ensure the DEADBAND stays within the desired range
+      DEADBAND = map(rawDEADBAND, 0, 1023, 550, 20);
+      DEADBAND = constrain(DEADBAND, 20, 550);
     }
 
-    uint8_t newREACTION_DELAY = map(rawREACT, 0, 1023, 32, 3);  // Map potentiometer to reaction delay
-    // Check if REACTION_DELAY value has changed and play a tone for feedback
+    // Convert the Reaction potentiometer position to the reaction delay.
+    uint8_t newREACTION_DELAY = map(rawREACT, 0, 1023, 32, 3);
+
+    // Give audible feedback when the reaction setting changes.
+    // PREVIOUS_REACTION_DELAY == -1 prevents a tone on the first reading.
     if (newREACTION_DELAY != PREVIOUS_REACTION_DELAY && PREVIOUS_REACTION_DELAY != -1) {
-      MY_TONE(4200, 50, 1);  // Play high-pitched tone when reactivity changes
+      MY_TONE(4200, 50, 1);
     }
-    // Update previous values for future comparisons
+
+    // Store the current reaction setting for comparison with the next reading.
     PREVIOUS_REACTION_DELAY = newREACTION_DELAY;
   }
 }
 
 // ============================================================================
-// Function to toggle between IR mode and RGB mode
-// Switches between TV remote control mode and LED color control mode
+// FUNCTION MODE TOGGLE
+// ============================================================================
+// Toggles between remote-control mode and RGB color-edit mode.
+// Button 0xBE is used only for switching modes; all other codes are passed
+// to the handler for the currently active mode.
 
 void FUNCTION_MODE_TOGGLE() {
-  // Toggle mode if button 0xBE pressed
+
+  // Toggle mode when button 0xBE is received.
   if (FILTERED_CODE == 0xBE) {
     REMOTE_CONTROL_MODE_ACTIVE = !REMOTE_CONTROL_MODE_ACTIVE;
 
     if (REMOTE_CONTROL_MODE_ACTIVE) {
-      // Entering REMOTE_CONTROL_MODE
+      // Enter remote-control mode.
+      // Reset feedback state and prepare the first RGB feedback display.
       MY_TONE(4000, 30, 1);
       FIRST_RGB_RUN = true;
       RESET_FEEDBACK_TIMERS();
       led.flash(220, 220, 220, 100, 100, 2);
+
     } else {
-      // Entering RGB_CODE_EDIT mode
+      // Enter RGB color-edit mode.
+      // Disable normal serial and LED feedback so the selected color can be edited.
       SERIAL_DATA_PRINT_ACTIVE = false;
       FEEDBACK_LED_ACTIVE = false;
       MY_TONE(3000, 30, 2);
-      PRINT_SELECTED_COLOR();   // Print the initial selected color to serial
+
+      // Show the currently selected color and initialize the edit color to red.
+      PRINT_SELECTED_COLOR();
       led.setColor(50, 0, 0);
       info.println(F("50, 0, 0"));
       //delay(MS(50));
     }
-    return;  // Exit after toggling, don't execute mode functions
+
+    return;  // Mode-switch command has been handled; do not process it further.
   }
 
-  // Execute active mode handler for all other button codes
+  // Process all other remote commands according to the active mode.
   if (REMOTE_CONTROL_MODE_ACTIVE) {
     REMOTE_CONTROL_MODE();
   } else {
@@ -467,94 +435,136 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 
 
 /* 
-               TV model: SAMSUNG UE43RU7102KXXH
-               
-                  ACCES SAMSUNG SERVICE MENU 
-      INFO      +    SETTINGS    +      MUTE      +    POWER
-   0xE0E0F807   +   0xE0E058A7   +   0xE0E0F00F   +  0xE0E06798
+   ===================================================================================
+                           TV MODEL: SAMSUNG UE43RU7102KXXH
+   ===================================================================================
+
+                  ACCESS SAMSUNG HIDDEN SERVICE MENU (FACTORY MODE)
+              Requirement: Execute sequence while TV is in STANDBY (OFF)
+
+   -----------------------------------------------------------------------------------
+      STEP 1         STEP 2           STEP 3          STEP 4            RESULT
+   -----------------------------------------------------------------------------------
+       INFO     +   SETTINGS    +      MUTE      +     POWER     ==>  SERVICE MENU
+    0xE0E0F807     0xE0E058A7       0xE0E0F00F       0xE0E06798
+
+   -----------------------------------------------------------------------------------
+    IR REMOTE LIBRARY FUNCTION CALLS (200ms DELAY BETWEEN STEPS):
+   -----------------------------------------------------------------------------------
+        1. IrSender.sendSamsung(0x707, 0x1F, 0);         // INFO     (0xE0E0F807)
+        2. IrSender.sendSamsung(0x707, 0x1A, 0);         // SETTINGS (0xE0E058A7)
+        3. IrSender.sendSamsung(0x707, 0x0F, 0);         // MUTE     (0xE0E0F00F)
+        4. IrSender.sendSamsung(0x707, 0x02, 0);         // POWER    (0xE0E06798)
+
+   ===================================================================================
+                         SAMSUNG IR REMOTE KEY MAP DESCRIPTION
+   ===================================================================================
+
+       Protocol: Samsung 32-bit Pulse Distance (NEC Variant)
+
+     RAW HEX   : The 32-bit decoded pulse sequence. Samsung uses a fixed 16-bit 
+                 Customer ID (0xE0E0) followed by 8 bits of command data and 8 bits 
+                 of bitwise-inverted command data for error checking.
+                 Unlike Philips RC-5, Samsung IR does NOT use a toggle bit.
+
+     <~>       : Denotes mapping between raw captured hex code and IRremote library 
+                 transmission call parameters.
+
+     SEND CMD  : IrSender.sendSamsung(Address, Command, Repeats)
+                 - Address (0x707): Standard 16-bit Samsung TV Device Identifier.
+                 - Command (0xXX) : Clean extracted 8-bit command payload (LSB-first).
+                 - Repeats (0)    : Number of additional repeat frames (0 = single press).
+   
+   ===================================================================================
+
+    BUTTON       RAW HEX               IR REMOTE TRANSMISSION CALL
+   -----------------------------------------------------------------------------------
+    POWER ..... 0xE0E06798   <~>   IrSender.sendSamsung(0x707, 0x02, 0);
+    SOURCE .... 0xE0E0807F   <~>   IrSender.sendSamsung(0x707, 0x01, 0);
+    1 ......... 0xE0E020DF   <~>   IrSender.sendSamsung(0x707, 0x04, 0);
+    2 ......... 0xE0E0A05F   <~>   IrSender.sendSamsung(0x707, 0x05, 0);
+    3 ......... 0xE0E0609F   <~>   IrSender.sendSamsung(0x707, 0x06, 0);
+    4 ......... 0xE0E010EF   <~>   IrSender.sendSamsung(0x707, 0x08, 0);
+    5 ......... 0xE0E0906F   <~>   IrSender.sendSamsung(0x707, 0x09, 0);
+    6 ......... 0xE0E050AF   <~>   IrSender.sendSamsung(0x707, 0x0A, 0);
+    7 ......... 0xE0E030CF   <~>   IrSender.sendSamsung(0x707, 0x0C, 0);
+    8 ......... 0xE0E0B04F   <~>   IrSender.sendSamsung(0x707, 0x0D, 0);
+    9 ......... 0xE0E0708F   <~>   IrSender.sendSamsung(0x707, 0x0E, 0);
+    0 ......... 0xE0E08877   <~>   IrSender.sendSamsung(0x707, 0x11, 0);
+    TTX/MIX ... 0xE0E034CB   <~>   IrSender.sendSamsung(0x707, 0x2C, 0);
+    PRE-CH .... 0xE0E0C837   <~>   IrSender.sendSamsung(0x707, 0x13, 0);
+    VOL+ ...... 0xE0E0E01F   <~>   IrSender.sendSamsung(0x707, 0x07, 0);
+    VOL- ...... 0xE0E0D02F   <~>   IrSender.sendSamsung(0x707, 0x0B, 0);
+    CH+ ....... 0xE0E048B7   <~>   IrSender.sendSamsung(0x707, 0x12, 0);
+    CH- ....... 0xE0E008F7   <~>   IrSender.sendSamsung(0x707, 0x10, 0);
+    MUTE ...... 0xE0E0F00F   <~>   IrSender.sendSamsung(0x707, 0x0F, 0);
+    CH LIST ... 0xE0E0D629   <~>   IrSender.sendSamsung(0x707, 0x6B, 0);
+    NETFLIX ... 0xE0E0CF30   <~>   IrSender.sendSamsung(0x707, 0xF3, 0);
+    RAKUTEN ... 0xE0E03DC2   <~>   IrSender.sendSamsung(0x707, 0xBC, 0);
+    PRIME ..... 0xE0E02FD0   <~>   IrSender.sendSamsung(0x707, 0xF4, 0);
+    HDMI1 ..... 0xE0E0D12E   <~>   IrSender.sendSamsung(0x707, 0x8B, 0);
+    TOOLS ..... 0xE0E0D22D   <~>   IrSender.sendSamsung(0x707, 0x4B, 0);
+    MEDIA.P ... 0xE0E031CE   <~>   IrSender.sendSamsung(0x707, 0x8C, 0);
+    HOME ...... 0xE0E09E61   <~>   IrSender.sendSamsung(0x707, 0x79, 0);
+    GUIDE ..... 0xE0E0F20D   <~>   IrSender.sendSamsung(0x707, 0x4F, 0);
+    UP ........ 0xE0E006F9   <~>   IrSender.sendSamsung(0x707, 0x60, 0);
+    DOWN ...... 0xE0E08679   <~>   IrSender.sendSamsung(0x707, 0x61, 0);
+    LEFT ...... 0xE0E0A659   <~>   IrSender.sendSamsung(0x707, 0x65, 0);
+    RIGHT ..... 0xE0E046B9   <~>   IrSender.sendSamsung(0x707, 0x62, 0);
+    OK ........ 0xE0E016E9   <~>   IrSender.sendSamsung(0x707, 0x68, 0);
+    RETURN .... 0xE0E01AE5   <~>   IrSender.sendSamsung(0x707, 0x58, 0);
+    EXIT ...... 0xE0E0B44B   <~>   IrSender.sendSamsung(0x707, 0x2D, 0);
+    A ......... 0xE0E083EC   <~>   IrSender.sendSamsung(0x707, 0x6C, 0);
+    B ......... 0xE0E028D7   <~>   IrSender.sendSamsung(0x707, 0x14, 0);
+    C ......... 0xE0E0A857   <~>   IrSender.sendSamsung(0x707, 0x15, 0);
+    D ......... 0xE0E06897   <~>   IrSender.sendSamsung(0x707, 0x16, 0);
+    SETTINGS .. 0xE0E058A7   <~>   IrSender.sendSamsung(0x707, 0x1A, 0);
+    INFO ...... 0xE0E0F807   <~>   IrSender.sendSamsung(0x707, 0x1F, 0);
+    AD/SUBT ... 0xE0E0A45B   <~>   IrSender.sendSamsung(0x707, 0x25, 0);
+    PLAY ...... 0xE0E0E21D   <~>   IrSender.sendSamsung(0x707, 0x47, 0);
+    PAUSE ..... 0xE0E052AD   <~>   IrSender.sendSamsung(0x707, 0x4A, 0);
+    STOP ...... 0xE0E0629D   <~>   IrSender.sendSamsung(0x707, 0x46, 0);
+    |<< ....... 0xE0E0A25D   <~>   IrSender.sendSamsung(0x707, 0x45, 0);
+    >>| ....... 0xE0E012ED   <~>   IrSender.sendSamsung(0x707, 0x48, 0);
+   ===================================================================================
 
 
-        SAMSUNG Parsed IR Parameters / Decoded IR Fields
-      
- Parsed IR Parameters for Power button:
-  0x707 - Address (The Samsung device identifier, standard for Samsung TVs)
-   0x2  - Command Code (The specific button payload, e.g., Digit 2 or Source selection depending on the remote)
-    0   - Repeats / Flags (Indicates standard transmission with no extra key-hold repeat bursts)
+
+   ===================================================================================
+                          PHILIPS IR REMOTE KEY MAP DESCRIPTION
+   ===================================================================================
+   FULL HEX : Full 17-bit raw frame with active toggle bit (0x10000). On repeated key 
+              presses, the toggle bit flips between 0x1XXXX and 0x0XXXX.
+    <~>     : Toggle bit state transition between consecutive button presses.
+    SHORT   : Extracted command byte (rawCode & 0xFF), independent of toggle bit state.
+   ===================================================================================
+   
+    BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT 
+   -------------------------------------+---------------------------------------------
+    POWER ..... 0x1000C  <~>  0x0C      |      HOME ...... 0x10054  <~>  0x54
+    SOURCE .... 0x10038  <~>  0x38      |      GUIDE ..... 0x100CC  <~>  0xCC
+    1 ......... 0x10001  <~>  0x01      |      UP ........ 0x10058  <~>  0x58
+    2 ......... 0x10002  <~>  0x02      |      DOWN ...... 0x10059  <~>  0x59
+    3 ......... 0x10003  <~>  0x03      |      LEFT ...... 0x1005A  <~>  0x5A
+    4 ......... 0x10004  <~>  0x04      |      RIGHT ..... 0x1005B  <~>  0x5B
+    5 ......... 0x10005  <~>  0x05      |      OK ........ 0x1005C  <~>  0x5C
+    6 ......... 0x10006  <~>  0x06      |      OPTIONS ... 0x10040  <~>  0x40
+    7 ......... 0x10007  <~>  0x07      |      EXIT ...... 0x1009F  <~>  0x9F
+    8 ......... 0x10008  <~>  0x08      |      A ......... 0x1006D  <~>  0x6D
+    9 ......... 0x10009  <~>  0x09      |      B ......... 0x1006E  <~>  0x6E
+    0 ......... 0x10000  <~>  0x00      |      C ......... 0x1006F  <~>  0x6F
+    TTX/MIX     0x1003C  <~>  0x3C      |      D ......... 0x10070  <~>  0x70
+    BACK        0x1000A  <~>  0x0A      |      SETTINGS .. 0x100BF  <~>  0xBF
+    VOL+ ...... 0x10010  <~>  0x10      |      INFO ...... 0x1000F  <~>  0x0F
+    VOL- ...... 0x10011  <~>  0x11      |      AD/SUBT ... 0x1004B  <~>  0x4B
+    CH+ ....... 0x10020  <~>  0x20      |      PLAY ...... 0x1002C  <~>  0x2C
+    CH- ....... 0x10021  <~>  0x21      |      PAUSE ..... 0x10030  <~>  0x30
+    MUTE ...... 0x1000D  <~>  0x0D      |      STOP ...... 0x10031  <~>  0x31
+    CH LIST ... 0x100D2  <~>  0xD2      |      |<< ....... 0x1002B  <~>  0x2B
+    NETFLIX ... 0x10076  <~>  0x76      |      >>| ....... 0x10028  <~>  0x28
+    MULTIVI ... 0x1005D  <~>  0x5D      |      STREAM .... 0x100F5  <~>  0xF5
+    SMART ..... 0x100BE  <~>  0xBE      |      RECORD .... 0x10037  <~>  0x37
+    SEARCH .... 0x100B4  <~>  0xB4      |
+   ===================================================================================
   
-  POWER .... 0xE0E06798  <~>  IrSender.sendSamsung(0x707, 0x2, 0);
-  SOURCE ... 0xE0E0807F  <~>  IrSender.sendSamsung(0x707, 0x1, 0);
-  1 ........ 0xE0E020DF  <~>  IrSender.sendSamsung(0x707, 0x4, 0);
-  2 ........ 0xE0E0A05F  <~>  IrSender.sendSamsung(0x707, 0x5, 0);
-  3 ........ 0xE0E0609F  <~>  IrSender.sendSamsung(0x707, 0x6, 0);
-  4 ........ 0xE0E010EF  <~>  IrSender.sendSamsung(0x707, 0x8, 0);
-  5 ........ 0xE0E0906F  <~>  IrSender.sendSamsung(0x707, 0x9, 0);
-  6 ........ 0xE0E050AF  <~>  IrSender.sendSamsung(0x707, 0xA, 0);
-  7 ........ 0xE0E030CF  <~>  IrSender.sendSamsung(0x707, 0xC, 0);
-  8 ........ 0xE0E0B04F  <~>  IrSender.sendSamsung(0x707, 0xD, 0);
-  9 ........ 0xE0E0708F  <~>  IrSender.sendSamsung(0x707, 0xE, 0);
-  0 ........ 0xE0E08877  <~>  IrSender.sendSamsung(0x707, 0x11, 0);
-  TTX/MIX .. 0xE0E034CB  <~>  IrSender.sendSamsung(0x707, 0x2C, 0);
-  PRE-CH ... 0xE0E0C837  <~>  IrSender.sendSamsung(0x707, 0x13, 0);
-  VOL+ ..... 0xE0E0E01F  <~>  IrSender.sendSamsung(0x707, 0x7, 0);
-  VOL- ..... 0xE0E0D02F  <~>  IrSender.sendSamsung(0x707, 0xB, 0);
-  CH+ ...... 0xE0E048B7  <~>  IrSender.sendSamsung(0x707, 0x12, 0);
-  CH- ...... 0xE0E008F7  <~>  IrSender.sendSamsung(0x707, 0x10, 0);
-  MUTE ..... 0xE0E0F00F  <~>  IrSender.sendSamsung(0x707, 0xF, 0);
-  CH LIST .. 0xE0E0D629  <~>  IrSender.sendSamsung(0x707, 0x6B, 0);
-  NETFLIX .. 0xE0E0CF30  <~>  IrSender.sendSamsung(0x707, 0xF3, 0);
-  RAKUTEN .. 0xE0E03DC2  <~>  IrSender.sendSamsung(0x707, 0xBC, 0);
-  PRIME .... 0xE0E02FD0  <~>  IrSender.sendSamsung(0x707, 0xF4, 0);
-  HDMI1 .... 0xE0E0D12E  <~>  IrSender.sendSamsung(0x707, 0x8B, 0);
-  TOOLS .... 0xE0E0D22D  <~>  IrSender.sendSamsung(0x707, 0x4B, 0);
-  MEDIA.P .. 0xE0E031CE  <~>  IrSender.sendSamsung(0x707, 0x8C, 0);
-  HOME ..... 0xE0E09E61  <~>  IrSender.sendSamsung(0x707, 0x79, 0);
-  GUIDE .... 0xE0E0F20D  <~>  IrSender.sendSamsung(0x707, 0x4F, 0);
-  UP ....... 0xE0E006F9  <~>  IrSender.sendSamsung(0x707, 0x60, 0);
-  DOWN ..... 0xE0E08679  <~>  IrSender.sendSamsung(0x707, 0x61, 0);
-  LEFT ..... 0xE0E0A659  <~>  IrSender.sendSamsung(0x707, 0x65, 0);
-  RIGHT .... 0xE0E046B9  <~>  IrSender.sendSamsung(0x707, 0x62, 0);
-  OK ....... 0xE0E016E9  <~>  IrSender.sendSamsung(0x707, 0x68, 0);
-  RETURN ... 0xE0E01AE5  <~>  IrSender.sendSamsung(0x707, 0x58, 0);
-  EXIT ..... 0xE0E0B44B  <~>  IrSender.sendSamsung(0x707, 0x2D, 0);
-  A ........ 0xE0E083EC  <~>  IrSender.sendSamsung(0x707, 0x6C, 0);
-  B ........ 0xE0E028D7  <~>  IrSender.sendSamsung(0x707, 0x14, 0);
-  C ........ 0xE0E0A857  <~>  IrSender.sendSamsung(0x707, 0x15, 0);
-  D ........ 0xE0E06897  <~>  IrSender.sendSamsung(0x707, 0x16, 0);
-  SETTINGS . 0xE0E058A7  <~>  IrSender.sendSamsung(0x707, 0x1A, 0);
-  INFO ..... 0xE0E0F807  <~>  IrSender.sendSamsung(0x707, 0x1F, 0);
-  AD/SUBT .. 0xE0E0A45B  <~>  IrSender.sendSamsung(0x707, 0x25, 0);
-  PLAY ..... 0xE0E0E21D  <~>  IrSender.sendSamsung(0x707, 0x47, 0);
-  PAUSE .... 0xE0E052AD  <~>  IrSender.sendSamsung(0x707, 0x4A, 0);
-  STOP ..... 0xE0E0629D  <~>  IrSender.sendSamsung(0x707, 0x46, 0);
-  |<< ...... 0xE0E0A25D  <~>  IrSender.sendSamsung(0x707, 0x45, 0);
-  >>| ...... 0xE0E012ED  <~>  IrSender.sendSamsung(0x707, 0x48, 0);
-
-
-                              PHILIPS
-
-  POWER    -->  1000C          C           |    SOURCE   -->  10038          38
-  1        -->  10001          1           |    2        -->  10002          2
-  3        -->  10003          3           |    4        -->  10004          4
-  5        -->  10005          5           |    6        -->  10006          6
-  7        -->  10007          7           |    8        -->  10008          8
-  9        -->  10009          9           |    0        -->  10000          0
-  TTX/MIX  -->  1003C          3C          |    BACK     -->  1000A          A
-  VOL+     -->  10010          10          |    VOL-     -->  10011          11
-  CH+      -->  10020          20          |    CH-      -->  10021          21
-  MUTE     -->  1000D          D           |    CH LIST  -->  100D2          D2
-  NETFLIX  -->  10076          76          |    MULTIVI  -->  1005D          5D
-  SMART    -->  100BE          BE          |    HOME     -->  10054          54
-  GUIDE    -->  100CC          CC          |    UP       -->  10058          58
-  DOWN     -->  10059          59          |    LEFT     -->  1005A          5A
-  RIGHT    -->  1005B          5B          |    OK       -->  1005C          5C
-  OPTOINNS -->  10040          40          |    EXIT     -->  1009F          9F
-  A        -->  1006D          6D          |    B        -->  1006E          6E
-  C        -->  1006F          6F          |    D        -->  10070          70
-  SETTINGS -->  100BF          BF          |    INFO     -->  1000F          F
-  AD/SUBT. -->  1004B          4B          |    PLAY     -->  1002C          2C
-  PAUSE    -->  10030          30          |    STOP     -->  10031          31
-  |<<      -->  1002B          2B          |    >>|      -->  10028          28
-  STREAM   -->  100F5          F5          |    SEARCH   -->  100B4          B4
-  RECORD   -->  10037          37
-
 */
