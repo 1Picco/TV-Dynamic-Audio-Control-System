@@ -537,6 +537,10 @@ bool eepromWearLevelRead(int8_t baseAddress) {
               presses, the toggle bit flips between 0x1XXXX and 0x0XXXX.
     <~>     : Toggle bit state transition between consecutive button presses.
     SHORT   : Extracted command byte (rawCode & 0xFF), independent of toggle bit state.
+
+    * NOTE:    These codes were captured using a WELL aftermarket replacement remote.
+             Original Philips OEM remotes or other clone models may exhibit subtle
+             differences in timing, bit depth, or default toggle bit state.
    ===================================================================================
    
     BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT 
