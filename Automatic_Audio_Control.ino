@@ -47,16 +47,24 @@ State state = Init;  // Initialize state machine to Init state
 
 void RESTORE_VOLUME_TO_ORIGINAL_VALUE() {
 
+  // Restore volume only when there are volume steps left to restore
+  // and the required interval between Volume Up commands has elapsed.
   if (VOLUME_REDUCTION_COUNTER == 0 || !restoreVolumeTimer.Reached(VOLUME_COMMAND_INTERVAL)) return;
 
+  // Show green feedback while restoring the original TV volume.
+  // LED feedback is disabled while charging.
   if (!CHARGING_ACTIVE) led.setColor(0, 250, 0);
+
+  // Send one Volume Up command to the Samsung TV.
   sendSamsungCode(0x07);
   restoreVolumeTimer.Reset();
 
+  // One volume step has been restored.
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
     VOLUME_REDUCTION_COUNTER--;
   }
 
+  // Show how many volume reduction steps are still left to restore.
   info.print(F("Volume + :"));
   info.println(VOLUME_REDUCTION_COUNTER);
 }
@@ -65,17 +73,26 @@ void RESTORE_VOLUME_TO_ORIGINAL_VALUE() {
 
 void LOWER_THE_VOLUME() {
 
+  // Lower the volume only while remote control mode is active,
+  // fewer than 5 reduction steps have been made, and the required
+  // interval between Volume Down commands has elapsed.
   if (VOLUME_REDUCTION_COUNTER >= 5 || !REMOTE_CONTROL_MODE_ACTIVE ||
       !lowerVolumeTimer.Reached(VOLUME_COMMAND_INTERVAL)) return;
 
+  // Show red feedback while lowering the TV volume.
+  // LED feedback is disabled while charging.
   if (!CHARGING_ACTIVE) led.setColor(250, 10, 0);
+
+  // Send one Volume Down command to the Samsung TV.
   sendSamsungCode(0x0B);
   lowerVolumeTimer.Reset();
 
+  // One additional volume reduction step has been made.
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
     VOLUME_REDUCTION_COUNTER++;
   }
 
+  // Show how many volume reduction steps have been made.
   info.print(F("Volume - :"));
   info.println(VOLUME_REDUCTION_COUNTER);
 }
@@ -101,8 +118,8 @@ void AUDIO_CONTROL_MODE() {
 
   auto audio = analogReadFiltered();  // Read current audio level
 
-  READ_ANALOG_DATA();        // Read analog values every 800ms
-  PRINT_SERIAL_DATA(audio);  // Print debug data every 10ms
+  READ_ANALOG_DATA();        // Read analog values every 500ms
+  PRINT_SERIAL_DATA(audio);  // Print debug data every 3ms
 
   switch (state) {
     case Init:  // Initial state - resets all timers and counters and immediately goes to next state
@@ -223,9 +240,9 @@ void AUDIO_CONTROL_MODE() {
       }
       break;
 
-    case AbortingRestore:  // Pause before lowering again
+    case AbortingRestore:        // Pause before lowering again
       if (AbortRestoreDelay.Reached(VOLUME_COMMAND_INTERVAL)) {
-        state = LoudConfirmed;  // Now proceed to lowering
+        state = LoudConfirmed;   // Now proceed to lowering
       }
       break;
   }
@@ -267,30 +284,39 @@ AsyncDelay PRINT_SERIAL_DATA_DELAY;
 
 // ============================================================================
 // Function to print debug data to serial monitor
-
 void PRINT_SERIAL_DATA(uint16_t audio) {
+
+  // Print diagnostic audio and state information when serial output is enabled.
+  // Data is printed at most once every 3 ms to avoid excessive serial output.
   if (SERIAL_DATA_PRINT_ACTIVE && PRINT_SERIAL_DATA_DELAY.Reached(3)) {
 
+    // Display the current reaction delay setting in milliseconds.
     Serial.print(F(" REACTION_DELAY:"));
     Serial.print(PREVIOUS_REACTION_DELAY * 10);
 
     Serial.print(F(" State:"));
-    // Safe lookup protection against out-of-bounds pointer reads
+
+    // Print the current state name.
+    // If the state value is outside the valid array range, print UNKNOWN
+    // instead of accessing an invalid array element.
     if (state >= 0 && state < (sizeof(StrStates) / sizeof(StrStates[0]))) {
       Serial.print(StrStates[state]);
     } else {
       Serial.print(F("UNKNOWN"));
     }
 
+    // Display the current audio level.
     Serial.print(F(" Audio:"));
     Serial.print(audio);
 
+    // Display the upper and lower audio baseline limits.
     Serial.print(F(" Baseline HIGH:"));
     Serial.print(AUDIO_BASELINE_HIGH);
 
     Serial.print(F(" Baseline LOW:"));
     Serial.print(AUDIO_BASELINE_LOW);
 
+    // Display the current deadband used for audio level evaluation.
     Serial.print(F(" DEADBAND:"));
     Serial.println(DEADBAND);
   }
