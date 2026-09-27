@@ -530,14 +530,30 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 
 
 
+===================================================================================
+                       PHILIPS IR REMOTE KEY MAP DESCRIPTION
+===================================================================================
    ===================================================================================
-                          PHILIPS IR REMOTE KEY MAP DESCRIPTION
-   ===================================================================================
-   FULL HEX : Full 17-bit raw frame with active toggle bit (0x10000). On repeated key
-              presses, the toggle bit flips between 0x1XXXX and 0x0XXXX.
-    <~>     : Toggle bit state transition between consecutive button presses.
-    SHORT   : Extracted command byte (rawCode & 0xFF), independent of toggle bit state.
-   ===================================================================================
+
+Protocol: Philips RC-5 / RC-6 / RC-5X
+
+  FULL HEX:  The full 17-bit raw value captured from the IR receiver. 
+             The leading '1' in 0x1XXXX represents the protocol's TOGGLE BIT set to HIGH.
+             On every consecutive press of the same button, this bit flips between 0 and 1:
+             - First Press (Toggle = 1):  0x1000C
+             - Second Press (Toggle = 0): 0x000C
+
+  <~> :      Indicates bit-toggle state alternation between consecutive key presses.
+
+  SHORT:     The clean command byte extracted by masking out the system prefix and toggle 
+             bit (rawCode & 0xFF). This code remains static regardless of how many times 
+             the button is pressed and serves as the primary button identifier in code.
+
+  * NOTE:    These codes were captured using a WELL aftermarket replacement remote.
+             Original Philips OEM remotes or other clone models may exhibit subtle
+             differences in timing, bit depth, or default toggle bit state.
+
+===================================================================================
 
     BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT
    -------------------------------------+---------------------------------------------
