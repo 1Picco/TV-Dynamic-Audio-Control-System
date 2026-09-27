@@ -20,7 +20,7 @@ void REMOTE_CONTROL_MODE() {
     case 0x11:
       sendSamsungCode(0x0B);
       if (!CHARGING_ACTIVE) {
-        IR_CODE_REPEATING ? led.setColor(250, 20, 0) : led.flash(250, 0, 0, 50, 0, 0);
+        IR_CODE_REPEATING ? led.setColor(250, 20, 0) : led.flash(250, 0, 0, 30, 0, 0);
       }
       break;
 
@@ -53,7 +53,7 @@ void REMOTE_CONTROL_MODE() {
         led.flash(220, 220, 220, 50, 50, 2);
       } else {
         MY_TONE(3000, 40, 1);
-        led.flash(100, 0, 255, 80, 50, 1);
+        led.flash(100, 0, 255, 50, 20, 1);
       }
       break;
 
@@ -76,7 +76,7 @@ void REMOTE_CONTROL_MODE() {
         led.flash(220, 220, 220, 50, 50, 2);
       } else {
         MY_TONE(3500, 40, 1);
-        led.flash(0, 80, 250, 80, 50, 1);
+        led.flash(0, 80, 250, 50, 20, 1);
       }
       break;
 
@@ -237,5 +237,5 @@ void REMOTE_CONTROL_MODE() {
 
   // Short delay after every processed IR command.
   // Repeating commands use a shorter delay so held buttons remain responsive.
-  delay(IR_CODE_REPEATING ? 1 : 75);
+  delay(IR_CODE_REPEATING ? 1 : 100);
 }
