@@ -25,7 +25,7 @@ bool SIGNAL_FILTER() {
 
   // Ignore signals received too soon after the previous processed signal.
   unsigned long now = millis();
-  if ((now - LAST_PROCESSED_SIGNAL_TIME) < MIN_SIGNAL_INTERVAL) {
+  if ((now - LAST_PROCESSED_SIGNAL_TIME) < (IR_CODE_REPEATING ? REPEAT_INTERVAL : SIGNAL_INTERVAL)) {
     irrecv.resume();
     return false;
   }
@@ -434,7 +434,7 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 }
 
 
-/* 
+/*
    ===================================================================================
                            TV MODEL: SAMSUNG UE43RU7102KXXH
    ===================================================================================
@@ -462,19 +462,19 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 
        Protocol: Samsung 32-bit Pulse Distance (NEC Variant)
 
-     RAW HEX   : The 32-bit decoded pulse sequence. Samsung uses a fixed 16-bit 
-                 Customer ID (0xE0E0) followed by 8 bits of command data and 8 bits 
+     RAW HEX   : The 32-bit decoded pulse sequence. Samsung uses a fixed 16-bit
+                 Customer ID (0xE0E0) followed by 8 bits of command data and 8 bits
                  of bitwise-inverted command data for error checking.
                  Unlike Philips RC-5, Samsung IR does NOT use a toggle bit.
 
-     <~>       : Denotes mapping between raw captured hex code and IRremote library 
+     <~>       : Denotes mapping between raw captured hex code and IRremote library
                  transmission call parameters.
 
      SEND CMD  : IrSender.sendSamsung(Address, Command, Repeats)
                  - Address (0x707): Standard 16-bit Samsung TV Device Identifier.
                  - Command (0xXX) : Clean extracted 8-bit command payload (LSB-first).
                  - Repeats (0)    : Number of additional repeat frames (0 = single press).
-   
+
    ===================================================================================
 
     BUTTON       RAW HEX               IR REMOTE TRANSMISSION CALL
@@ -533,17 +533,13 @@ bool eepromWearLevelRead(int8_t baseAddress) {
    ===================================================================================
                           PHILIPS IR REMOTE KEY MAP DESCRIPTION
    ===================================================================================
-   FULL HEX : Full 17-bit raw frame with active toggle bit (0x10000). On repeated key 
+   FULL HEX : Full 17-bit raw frame with active toggle bit (0x10000). On repeated key
               presses, the toggle bit flips between 0x1XXXX and 0x0XXXX.
     <~>     : Toggle bit state transition between consecutive button presses.
     SHORT   : Extracted command byte (rawCode & 0xFF), independent of toggle bit state.
-
-    * NOTE:    These codes were captured using a WELL aftermarket replacement remote.
-             Original Philips OEM remotes or other clone models may exhibit subtle
-             differences in timing, bit depth, or default toggle bit state.
    ===================================================================================
-   
-    BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT 
+
+    BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT
    -------------------------------------+---------------------------------------------
     POWER ..... 0x1000C  <~>  0x0C      |      HOME ...... 0x10054  <~>  0x54
     SOURCE .... 0x10038  <~>  0x38      |      GUIDE ..... 0x100CC  <~>  0xCC
@@ -570,5 +566,5 @@ bool eepromWearLevelRead(int8_t baseAddress) {
     SMART ..... 0x100BE  <~>  0xBE      |      RECORD .... 0x10037  <~>  0x37
     SEARCH .... 0x100B4  <~>  0xB4      |
    ===================================================================================
-  
+
 */
