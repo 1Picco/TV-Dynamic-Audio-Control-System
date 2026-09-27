@@ -16,6 +16,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+
 // TV Dynamic Audio Control System
 // This Arduino project automatically adjusts TV volume based on audio levels
 // and provides IR remote control functionality for Samsung TVs
@@ -230,7 +231,8 @@ uint8_t LAST_IR_CODE                     = 0;
 uint8_t CONSECUTIVE_IR_CODE_COUNT        = 0;
 unsigned long LAST_IR_SIGNAL_TIME        = 0;
 unsigned long LAST_PROCESSED_SIGNAL_TIME = 0;
-const uint8_t MIN_SIGNAL_INTERVAL        = 15;
+const uint8_t SIGNAL_INTERVAL            = 20;
+const uint8_t REPEAT_INTERVAL            = 1;
 static bool IR_CODE_REPEATING            = false;
 
 // ============================================================================
@@ -377,16 +379,16 @@ void setup() {
   led.off();
 
   // Pin configuration
-  pinMode(PIN_CHARGE_CONTROL, OUTPUT);   // Set CHARGE_CONTROL pin as output for battery charging control
-  pinMode(PIN_BATTERY_VOLTAGE, INPUT);   // Set BATTERY_VOLTAGE as input for VOLTAGE monitoring
-  pinMode(PIN_BATTERY_LOAD, OUTPUT);     // Set BATTERY_LOAD pin as output for applying load during voltage measurement
-  pinMode(RESET_PIN, INPUT_PULLUP);      // Pin HIGH by default via internal pull-up
+  pinMode(PIN_CHARGE_CONTROL, OUTPUT);    // Set CHARGE_CONTROL pin as output for battery charging control
+  pinMode(PIN_BATTERY_VOLTAGE, INPUT);    // Set BATTERY_VOLTAGE as input for VOLTAGE monitoring
+  pinMode(PIN_BATTERY_LOAD, OUTPUT);      // Set BATTERY_LOAD pin as output for applying load during voltage measurement
+  pinMode(RESET_PIN, INPUT_PULLUP);       // Pin HIGH by default via internal pull-up
   pinMode(PIN_DEADBAND, INPUT);           // Set PIN_DEADBAND as input for DEADBAND potentiometer
   pinMode(RESET_PIN, OUTPUT);             // Then make it output - stays HIGH
   pinMode(PIN_REACT, INPUT);              // Set PIN_REACT as input for reactivity potentiometer
   pinMode(PIN_AUDIO, INPUT);              // Set PIN_AUDIO as input for audio sensor
 
-  digitalWrite(PIN_BATTERY_LOAD, LOW);   // Keep load off initially
+  digitalWrite(PIN_BATTERY_LOAD, LOW);    // Keep load off initially
 
   // Serial communication and ADC configuration
   Serial.begin(115200);
@@ -467,24 +469,9 @@ void loop() {
   HANDLE_FEEDBACK();                 // Feedback and deadband handling
   HANDLE_STATUS();                   // RGB status and periodic serial-data indication
   HANDLE_IR();                       // IR reception and repeat timeout handling
-  //COUNTDOWN();                     // Countdown till next voltae reading
-
+  //rawCode();                       // Identify and inspect IR codes
+  
   GO_TO_SLEEP(false, HOURS(1));      // Put Arduino to sleep after 1 hour of inactivity
-}
-
-// ============================================================================
-// Countdown till next voltae reading
-// ============================================================================
-void COUNTDOWN() {
-  // 1. Idle countdown (between regular 10-min battery checks)
-  if (!LOAD_TEST_ACTIVE && !CHARGING_ACTIVE) {
-    PRINT_COUNTDOWN();
-  }
-
-  // 2. Charging countdown (between 15-min charge pause checks)
-  if (CHARGING_ACTIVE && !CHARGING_PAUSED) {
-    PRINT_CHARGE_CHECK_COUNTDOWN();
-  }
 }
 
 // ============================================================================
@@ -502,7 +489,7 @@ void HANDLE_FEEDBACK() {
   }
   // 3. Feedback timer active only if not charging
   if (!CHARGING_ACTIVE && VOLUME_CONTROL_ACTIVE) {
-    FEEDBACK_ON(SECONDS(15));
+    FEEDBACK_ON(SECONDS(30));
     FEEDBACK_OFF(SECONDS(1));
   }
 }
@@ -558,7 +545,7 @@ void HANDLE_STATUS() {
       led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
     }
   } else if (SERIAL_DATA_PRINT_ACTIVE) {
-    // Beep every 5 minutes while serial-data indication is active
+    // Beep every 5 minutes while serial-data print is active
     MY_TONE_REPEAT(3800, 20, 2, MINUTES(5));
   }
 }
