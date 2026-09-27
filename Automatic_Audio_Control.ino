@@ -257,7 +257,10 @@ void AUDIO_CONTROL_MODE() {
       // If we not charging and volume was lowered warn by fading yellow color
       if (!CHARGING_ACTIVE && VOLUME_REDUCTION_COUNTER > 0) {
         FEEDBACK_LED_ACTIVE = true;
-        FEEDBACK_PATTERN(25, 250, 10, 150, 0, 0, 0, 300, 0, 1000, 0, false, 0);
+
+        if (DEADBAND_COUNTER > 0) FEEDBACK_PATTERN(0, 250, 20, 150, 100, 0, 0, 300, 100, 1000, 300, false, 0);
+        else if (DEADBAND_COUNTER < 0) FEEDBACK_PATTERN(75, 250, 0, 150, 100, 0, 0, 300, 100, 1000, 300, false, 0);
+        else FEEDBACK_PATTERN(25, 250, 10, 150, 0, 0, 0, 300, 100, 1000, 300, false, 0);
       } else
         // But if we charging, fade battery voltage by dynamic colors
         if (digitalRead(PIN_CHARGE_CONTROL) == HIGH)
