@@ -110,13 +110,13 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
 }
 
 // ============================================================================
-// IR CODE DECODE FUNCTION
+// IR CODE INSPECTION FUNCTION
 // ============================================================================
 // Decodes one received IR signal and prints its protocol, address, command,
 // and raw data to Serial Monitor.
 // Used to identify and inspect IR codes when testing remote controls.
 
-void rawCode() {
+void INSPECT_IR_CODE() {
   if (IrReceiver.decode()) {
 
     Serial.print("Protocol: ");
@@ -329,23 +329,23 @@ void FUNCTION_MODE_TOGGLE() {
     if (REMOTE_CONTROL_MODE_ACTIVE) {
       // Enter remote-control mode.
       // Reset feedback state and prepare the first RGB feedback display.
-      MY_TONE(4000, 30, 1);
+      MY_TONE(4000, -350, 30, 2);
       FIRST_RGB_RUN = true;
       RESET_FEEDBACK_TIMERS();
-      led.flash(220, 220, 220, 100, 100, 2);
+      led.flash(220, 220, 220, 30, 100, 2);
 
     } else {
       // Enter RGB color-edit mode.
       // Disable normal serial and LED feedback so the selected color can be edited.
       SERIAL_DATA_PRINT_ACTIVE = false;
       FEEDBACK_LED_ACTIVE = false;
-      MY_TONE(3000, 30, 2);
+      MY_TONE(3300, +350, 30, 2);
 
       // Show the currently selected color and initialize the edit color to red.
       PRINT_SELECTED_COLOR();
       led.setColor(50, 0, 0);
       info.println(F("50, 0, 0"));
-      //delay(MS(50));
+      delay(MS(150));
     }
 
     return;  // Mode-switch command has been handled; do not process it further.
@@ -530,30 +530,14 @@ bool eepromWearLevelRead(int8_t baseAddress) {
 
 
 
-===================================================================================
-                       PHILIPS IR REMOTE KEY MAP DESCRIPTION
-===================================================================================
    ===================================================================================
-
-Protocol: Philips RC-5 / RC-6 / RC-5X
-
-  FULL HEX:  The full 17-bit raw value captured from the IR receiver. 
-             The leading '1' in 0x1XXXX represents the protocol's TOGGLE BIT set to HIGH.
-             On every consecutive press of the same button, this bit flips between 0 and 1:
-             - First Press (Toggle = 1):  0x1000C
-             - Second Press (Toggle = 0): 0x000C
-
-  <~> :      Indicates bit-toggle state alternation between consecutive key presses.
-
-  SHORT:     The clean command byte extracted by masking out the system prefix and toggle 
-             bit (rawCode & 0xFF). This code remains static regardless of how many times 
-             the button is pressed and serves as the primary button identifier in code.
-
-  * NOTE:    These codes were captured using a WELL aftermarket replacement remote.
-             Original Philips OEM remotes or other clone models may exhibit subtle
-             differences in timing, bit depth, or default toggle bit state.
-
-===================================================================================
+                          PHILIPS IR REMOTE KEY MAP DESCRIPTION
+   ===================================================================================
+   FULL HEX : Full 17-bit raw frame with active toggle bit (0x10000). On repeated key
+              presses, the toggle bit flips between 0x1XXXX and 0x0XXXX.
+    <~>     : Toggle bit state transition between consecutive button presses.
+    SHORT   : Extracted command byte (rawCode & 0xFF), independent of toggle bit state.
+   ===================================================================================
 
     BUTTON      FULL HEX     SHORT      |      BUTTON      FULL HEX     SHORT
    -------------------------------------+---------------------------------------------
