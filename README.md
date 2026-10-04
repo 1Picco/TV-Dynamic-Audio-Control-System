@@ -626,6 +626,25 @@ These values can be adjusted to suit different hardware, room acoustics, TV beha
 
 ---
 
+### Global Debug & Inspection Settings
+
+Two independent compile-time switches are available for testing and troubleshooting:
+
+* **Global Serial information output (`DEBUG`)**
+
+  * Set `DEBUG` to `1` to enable `info.print()` / `info.println()` messages.
+  * Set `DEBUG` to `0` to disable the general `info` serial messages.
+  * **Exception:** the scheduled battery-voltage reading remains available every 10 minutes, regardless of the `DEBUG` setting.
+
+* **IR Code Inspection Mode (`IR_CODE_INSPECTION`)**
+
+  * Set `IR_CODE_INSPECTION` to `1` to replace normal system operation with IR code inspection.
+  * Set `IR_CODE_INSPECTION` to `0` for normal system operation.
+  * This mode works independently of the `DEBUG` setting.
+  * Received IR signals are decoded and their protocol, address, command, and raw data are displayed in the Serial Monitor.
+
+---
+
 ## Important Notes
 
 ### Samsung compatibility
