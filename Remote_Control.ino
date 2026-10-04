@@ -19,6 +19,7 @@ void REMOTE_CONTROL_MODE() {
     // A held/repeating command uses a steady LED; a single command flashes.
     case 0x11:
       sendSamsungCode(0x0B);
+      MUTED = false;
       if (!CHARGING_ACTIVE) {
         IR_CODE_REPEATING ? led.setColor(250, 20, 0) : led.flash(250, 0, 0, 30, 0, 0);
       }
@@ -29,6 +30,7 @@ void REMOTE_CONTROL_MODE() {
     // A held/repeating command uses a steady LED; a single command flashes.
     case 0x10:
       sendSamsungCode(0x07);
+      MUTED = false;
       if (!CHARGING_ACTIVE) {
         IR_CODE_REPEATING ? led.setColor(20, 250, 0) : led.flash(0, 250, 0, 50, 0, 0);
       }
@@ -118,15 +120,26 @@ void REMOTE_CONTROL_MODE() {
       arduinoReset();
       break;
 
+    // Toggle Tone System
+    // Enable or disable the tone feedback system.
+    // When enabled, play a confirmation tone.
+    case 0x3C:
+      MY_TONE_ENABLED = !MY_TONE_ENABLED;
+      if (MY_TONE_ENABLED) MY_TONE(4000, 30, 1);
+      MY_TONE_ENABLED ? led.flash(0, 250, 0, 30, 50, 2) : led.flash(250, 0, 0, 30, 50, 2);
+      delay(MS(250));
+      break;
+
     // Tone / Volume control toggle button
     // When the tone system is disabled, this button sends Samsung Mute.
     // Otherwise, it toggles automatic volume control on/off.
     case 0x0D:
       if (!MY_TONE_ENABLED) {
         sendSamsungCode(0x0F); // Mute
+        MUTED = !MUTED;
       } else {
         VOLUME_CONTROL_ACTIVE = !VOLUME_CONTROL_ACTIVE;
-        VOLUME_CONTROL_ACTIVE ? led.flash(0, 250, 0, 50, 50, 2) : led.flash(250, 0, 0, 50, 50, 2);
+        VOLUME_CONTROL_ACTIVE ? led.flash(0, 250, 0, 30, 50, 2) : led.flash(250, 0, 0, 30, 50, 2);
       }
       delay(MS(250));
       break;
@@ -186,22 +199,13 @@ void REMOTE_CONTROL_MODE() {
       sendSamsungCode(0x4A);
       break;
 
-    // Toggle Tone System
-    // Enable or disable the tone feedback system.
-    // When enabled, play a confirmation tone.
-    case 0x3C:
-      MY_TONE_ENABLED = !MY_TONE_ENABLED;
-      if (MY_TONE_ENABLED) MY_TONE(4200, 75, 1);
-      delay(MS(250));
-      break;
-
     // Toggle Serial Print Data
     // Enable or disable diagnostic serial output and save the setting in EEPROM.
     // The confirmation tone differs depending on the new state.
     case 0xF5:
       SERIAL_DATA_PRINT_ACTIVE = !SERIAL_DATA_PRINT_ACTIVE;
       eepromWearLevelWrite(EEPROM_SERIAL_ACTIVE_BASE, SERIAL_DATA_PRINT_ACTIVE);
-      SERIAL_DATA_PRINT_ACTIVE ? MY_TONE(3000, 30, 2) : MY_TONE(4500, 30, 1);
+      SERIAL_DATA_PRINT_ACTIVE ? MY_TONE(3300, +350, 30, 2) : MY_TONE(4000, -350, 30, 2);
       delay(MS(500));
       break;
 
