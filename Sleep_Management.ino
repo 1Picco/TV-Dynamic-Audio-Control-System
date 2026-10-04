@@ -33,6 +33,7 @@ void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 
       STAY_AWAKE = false;
 
       // Disable peripherals to maximize power savings during sleep.
+      digitalWrite(PERIPHERAL_POWER, HIGH);        // Cut power to external peripherals
       power_adc_disable();
       power_usart0_disable();
       power_spi_disable();
@@ -139,6 +140,7 @@ void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 
     } while (!STAY_AWAKE);
 
     // Re-enable all peripherals required for normal active-mode operation.
+    digitalWrite(PERIPHERAL_POWER, LOW);    // Power UP all peripherals
     power_adc_enable();
     power_usart0_enable();
     power_spi_enable();
@@ -156,6 +158,6 @@ void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 
     REQUEST_BATTERY_VOLTAGE_READING();
 
     // White flash indicates that normal active operation has resumed.
-    led.flash(220, 220, 220, 500, 5, 1);
+    led.flash(220, 220, 220, 30, 0, 0);
   }
 }
