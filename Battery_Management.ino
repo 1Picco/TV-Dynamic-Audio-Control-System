@@ -122,6 +122,7 @@ void BATTERY_CHARGE_CHECK() {
       digitalWrite(PIN_CHARGE_CONTROL, HIGH);
       eepromWearLevelWrite(EEPROM_CHARGING_ACTIVE_BASE, true);
       info.println(F("Low voltage! Charging started."));
+      led.flash(0, 255, 0, 30, 0, 0);
 
       LOW_VOLTAGE_START_CHARGING = true;
       CHARGING_CYCLE_COMPLETE = false;
@@ -137,15 +138,13 @@ void BATTERY_CHARGE_CHECK() {
 
     digitalWrite(PIN_CHARGE_CONTROL, LOW);
 
-    //digitalWrite(PIN_BATTERY_LOAD, HIGH);
-    //MY_TONE(3500, 15, 2);
-    MY_TONE(3250, +250, 20, 2);
+    MY_TONE(3300, +350, 20, 2);
 
-    // White fade indicates that charging is temporarily paused
+    // White indicates that charging is temporarily paused
     // for a battery voltage measurement.
     led.fadeIn(220, 220, 220, 15, 150);
 
-    info.println(F("Charging PAUSED and load applied."));
+    info.println(F("Charging PAUSED to measure battery voltage."));
 
     CHARGING_PAUSED = true;
     PAUSE_CHARGING_TO_READ_VOLTAGE = CURRENT_MILLIS;
@@ -158,7 +157,7 @@ void BATTERY_CHARGE_CHECK() {
 
     VOLTAGE_DURING_PAUSED_CHARGING = GET_BATTERY_VOLTAGE_mV();
 
-    info.print(F("Stabilized battery voltage under load: "));
+    info.print(F("Stabilized battery voltage: "));
     info.print(VOLTAGE_DURING_PAUSED_CHARGING / 1000);
     info.print('.');
     info.print((VOLTAGE_DURING_PAUSED_CHARGING % 1000) / 100);
@@ -173,8 +172,7 @@ void BATTERY_CHARGE_CHECK() {
       eepromWearLevelWrite(EEPROM_CHARGING_ACTIVE_BASE, false);
       info.println(F("Charging complete."));
 
-      //MY_TONE(3500, 15, 2);
-      MY_TONE(3750, -250, 20, 3);
+      MY_TONE(4000, -235, 20, 3);
 
       CHARGING_ACTIVE = false;
       CHARGING_CYCLE_COMPLETE = true;
@@ -188,13 +186,14 @@ void BATTERY_CHARGE_CHECK() {
       info.println(F("Resume charging."));
 
       led.fadeOut(220, 220, 220, 15, 150);
-      MY_TONE(3750, -250, 20, 2);
+      MY_TONE(4000, 20, 2);
     }
 
     // Finish the charging pause and start the timer for the next
     // periodic charging-state check.
     CHARGING_PAUSED = false;
     LAST_TIME_VOLTAGE_READING = CURRENT_MILLIS;
+    led.flash(0, 255, 0, 30, 50, 3);
   }
 }
 // ============================================================================
