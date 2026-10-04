@@ -1,20 +1,20 @@
 /*
- * TV Dynamic Audio Control System
- * Copyright (C) 2026 Attila
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+   TV Dynamic Audio Control System
+   Copyright (C) 2026 Attila
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
 
 
 // TV Dynamic Audio Control System
@@ -56,6 +56,7 @@ const uint8_t PIN_AUDIO           = A0;  // Audio input pin - connects to microp
 const uint8_t PIN_REACT           = A1;  // Reactivity potentiometer pin - controls system responsiveness
 const uint8_t PIN_DEADBAND        = A2;  // DEADBAND potentiometer pin - controls audio sensitivity threshold
 const uint8_t PIN_BATTERY_VOLTAGE = A3;  // Battery VOLTAGE monitoring pin - VOLTAGE divider input
+const uint8_t PERIPHERAL_POWER    = A5;  // Controls 3.3V power to external peripherals
 const uint8_t PIN_IR_RECEIVER     = 2;   // IR receiver pin - receives remote control signals
 const uint8_t PIN_IR_LED          = 3;   // IR LED pin - sends commands to TV
 const uint8_t PIN_CHARGE_CONTROL  = 4;   // Battery CHARGE_CONTROL control pin - enables/disables charging
@@ -150,9 +151,9 @@ const uint16_t START_CHARGING_VOLTAGE                  = 3450;  // Start chargin
 // BATTERY VARIABLES (all voltage values in millivolts)
 // ============================================================================
 
-static bool LOAD_TEST_ACTIVE         = false;
-static bool VOLTAGE_CAPTURED         = false;
-static unsigned long LOAD_TEST_TIMER = 0;
+static bool LOAD_TEST_ACTIVE                 = false;
+static bool VOLTAGE_CAPTURED                 = false;
+static unsigned long LOAD_TEST_TIMER         = 0;
 
 uint16_t RAW_VOLTAGE                         = 0;  // Raw battery voltage in mV
 uint16_t VOLTAGE                             = 0;  // Battery voltage in mV
@@ -161,35 +162,34 @@ unsigned long PREVIOUS_VOLTAGE_READING       = 0;
 unsigned long LAST_TIME_VOLTAGE_READING      = 0;
 unsigned long PAUSE_CHARGING_TO_READ_VOLTAGE = 0;
 
+const uint8_t VOLTAGE_EPSILON_MV             = 10;    // Millivolt comparison tolerance
+static bool FIRST_VOLTAGE_READING_TAKEN      = true;
+static bool CHARGING_ACTIVE                  = false;
+static bool CHARGING_PAUSED                  = false;
+static bool LOW_VOLTAGE_START_CHARGING       = false;
+static bool CHARGING_CYCLE_COMPLETE          = false;
+bool BATTERY_MEASUREMENT_ACTIVE              = false;
+
 uint16_t READ_BATTERY_VOLTAGE();
 void     BATTERY_CHARGE_CHECK();
-
-const uint8_t VOLTAGE_EPSILON_MV        = 10;    // Millivolt comparison tolerance
-static bool FIRST_VOLTAGE_READING_TAKEN = true;
-static bool CHARGING_ACTIVE             = false;
-static bool CHARGING_PAUSED             = false;
-static bool LOW_VOLTAGE_START_CHARGING  = false;
-static bool CHARGING_CYCLE_COMPLETE     = false;
-bool BATTERY_MEASUREMENT_ACTIVE         = false;
 
 // ============================================================================
 // LED CONTROL VARIABLES
 // ============================================================================
 
 byte LED_BRIGHTNESS = 0;
-byte RED_VALUE      = 0, GREEN_VALUE       = 0, BLUE_VALUE     = 0;
-byte RED_INTENSITY  = 0, GREEN_INTENSITY   = 0, BLUE_INTENSITY = 0;
+byte RED_VALUE      = 0, GREEN_VALUE     = 0, BLUE_VALUE     = 0;
+byte RED_INTENSITY  = 0, GREEN_INTENSITY = 0, BLUE_INTENSITY = 0;
 
-unsigned int FEEDBACK_LED_DYNAMIC_FADE_OUT = 0;
-unsigned long PREVIOUS_MILLIS              = 0;
-
+unsigned int FEEDBACK_LED_DYNAMIC_FADE_OUT        = 0;
+unsigned long PREVIOUS_MILLIS                     = 0;
 unsigned long RGB_FEEDBACK_START_TIME             = 0;
 unsigned long RGB_FEEDBACK_ACTIVE_TIME            = 0;
 unsigned long FEEDBACK_OFF_START_TIME             = 0;
 unsigned long FEEDBACK_OFF_AFTER_IR_DETECTED_TIME = 0;
 
-static bool FEEDBACK_LED_ACTIVE    = false;
-static bool FEEDBACK_OFF_ACTIVE    = false;
+static bool FEEDBACK_LED_ACTIVE                   = false;
+static bool FEEDBACK_OFF_ACTIVE                   = false;
 
 // ============================================================================
 // RGB MODE VARIABLES
@@ -220,20 +220,21 @@ void PRINT_SERIAL_DATA();
 
 volatile bool VOLUME_CONTROL_ACTIVE         = true;
 bool stillLoudAudio                         = true;
+bool MUTED                                  = false;
 const unsigned long VOLUME_COMMAND_INTERVAL = 200;  // 200 ms between commands
 
 // ============================================================================
 // IR CONTROL VARIABLES
 // ============================================================================
 
-uint8_t FILTERED_CODE                    = 0;
-uint8_t LAST_IR_CODE                     = 0;
-uint8_t CONSECUTIVE_IR_CODE_COUNT        = 0;
-unsigned long LAST_IR_SIGNAL_TIME        = 0;
-unsigned long LAST_PROCESSED_SIGNAL_TIME = 0;
-const uint8_t SIGNAL_INTERVAL            = 20;
-const uint8_t REPEAT_INTERVAL            = 1;
-static bool IR_CODE_REPEATING            = false;
+uint8_t FILTERED_CODE                       = 0;
+uint8_t LAST_IR_CODE                        = 0;
+uint8_t CONSECUTIVE_IR_CODE_COUNT           = 0;
+unsigned long LAST_IR_SIGNAL_TIME           = 0;
+unsigned long LAST_PROCESSED_SIGNAL_TIME    = 0;
+const uint8_t SIGNAL_INTERVAL               = 20;
+const uint8_t REPEAT_INTERVAL               = 1;
+static bool IR_CODE_REPEATING               = false;
 
 // ============================================================================
 // SYSTEM STATE FLAGS
@@ -275,8 +276,8 @@ void FEEDBACK_PATTERN(byte minRed,   byte maxRed,
                       byte minGreen, byte maxGreen,
                       byte minBlue,  byte maxBlue,
                       byte blinkCount,
-                      uint16_t fadeInTime, uint16_t onTime,
-                      uint16_t fadeOutTime, uint16_t offTime,
+                      uint16_t fadeInTime,   uint16_t onTime,
+                      uint16_t fadeOutTime,  uint16_t offTime,
                       bool USE_CHARGE_LOGIC, uint16_t voltagePausedCharging_mV);
 
 // ============================================================================
@@ -296,6 +297,32 @@ void TIME_TO_WAKE_UP();
 void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 0, uint32_t SECONDS = 0);
 
 // ============================================================================
+// IR CODE INSPECTION MODE
+// ============================================================================
+// Set to 1 to replace normal operation with IR code inspection.
+// Set to 0 for normal system operation.
+// ============================================================================
+
+#define IR_CODE_INSPECTION 0
+
+#if IR_CODE_INSPECTION
+
+#define NORMAL_OPERATION INSPECT_IR_CODE
+
+#else
+
+void NORMAL_OPERATION()
+{
+  HANDLE_AUDIO_CONTROL();            // Automatic audio control or volume-control feedback
+  BATTERY_CHARGE_CHECK();            // System maintenance
+  HANDLE_FEEDBACK();                 // Feedback and deadband handling
+  HANDLE_STATUS();                   // RGB status and periodic serial-data indication
+  HANDLE_IR();                       // IR reception and repeat timeout handling
+}
+
+#endif
+
+// ============================================================================
 // AsyncDelay Class - Non-blocking delay timer for state machine timing
 // Provides asynchronous delay functionality without blocking the main loop
 
@@ -306,23 +333,23 @@ class AsyncDelay {
 
   public:
     AsyncDelay() {
-      Reset();  // Initialize delay timer
+      Reset();                                     // Initialize delay timer
     }
 
     void Reset() {
-      startedAt = 0;  // Reset start time
-      running = false;  // Mark as not running
+      startedAt = 0;                               // Reset start time
+      running = false;                             // Mark as not running
     }
 
     bool Reached(unsigned long ms) {
       if (!running) {
-        startedAt = millis();  // Start timing when first called
-        running = true;         // Mark as running
+        startedAt = millis();                      // Start timing when first called
+        running = true;                            // Mark as running
       }
       auto result = (millis() >= startedAt + ms);  // Check if delay time has elapsed
       if (result)
-        Reset();  // Reset timer when delay is complete
-      return result;  // Return true if delay time has been reached
+        Reset();                                   // Reset timer when delay is complete
+      return result;                               // Return true if delay time has been reached
     }
 };
 
@@ -332,21 +359,21 @@ class AsyncDelay {
 
 class Counter {
   private:
-    uint8_t currentValue;  // Current count value
+    uint8_t currentValue;                       // Current count value
 
   public:
     Counter() {
-      Reset();  // Initialize counter
+      Reset();                                  // Initialize counter
     }
     void Reset() {
-      currentValue = 0;  // Reset counter to zero
+      currentValue = 0;                         // Reset counter to zero
     }
 
     bool Reached(uint8_t value) {
       auto result = (++currentValue >= value);  // Increment and check if target reached
       if (result)
-        Reset();  // Reset counter when target is reached
-      return result;  // Return true if target value has been reached
+        Reset();                                // Reset counter when target is reached
+      return result;                            // Return true if target value has been reached
     }
 };
 
@@ -354,40 +381,38 @@ class Counter {
 // Function pointer to perform Arduino reset when invoked.
 
 void arduinoReset() {
-  digitalWrite(RESET_PIN, LOW);  // Triggers Arduino reset
+  digitalWrite(RESET_PIN, LOW);                 // Triggers Arduino reset
 }
 
 // ============================================================================
 // Update voltage and show battery color when finished
+
 void REQUEST_BATTERY_VOLTAGE_READING() {
+
   // Force the 10-minute interval check to pass instantly
   PREVIOUS_VOLTAGE_READING = millis() - TIME_TO_READ_BATTERY_VOLTAGE;
-  // (Optional) If you were relying on this flag, you can set it too
   FIRST_VOLTAGE_READING_TAKEN = true;
 }
 
 // ============================================================================
 // Setup function - Initialize all hardware and system variables
-// Called once at startup to configure pins, load settings, and prepare system
-
-// ============================================================================
-// Initialize hardware, system state and persistent settings
 // ============================================================================
 void setup() {
 
-  // Initial LED state
-  led.off();
+  led.off();                              // Initial LED state
 
   // Pin configuration
   pinMode(PIN_CHARGE_CONTROL, OUTPUT);    // Set CHARGE_CONTROL pin as output for battery charging control
   pinMode(PIN_BATTERY_VOLTAGE, INPUT);    // Set BATTERY_VOLTAGE as input for VOLTAGE monitoring
   pinMode(PIN_BATTERY_LOAD, OUTPUT);      // Set BATTERY_LOAD pin as output for applying load during voltage measurement
+  pinMode(PERIPHERAL_POWER, OUTPUT);      // Configure peripheral power control
   pinMode(RESET_PIN, INPUT_PULLUP);       // Pin HIGH by default via internal pull-up
   pinMode(PIN_DEADBAND, INPUT);           // Set PIN_DEADBAND as input for DEADBAND potentiometer
   pinMode(RESET_PIN, OUTPUT);             // Then make it output - stays HIGH
   pinMode(PIN_REACT, INPUT);              // Set PIN_REACT as input for reactivity potentiometer
   pinMode(PIN_AUDIO, INPUT);              // Set PIN_AUDIO as input for audio sensor
 
+  digitalWrite(PERIPHERAL_POWER, LOW);    // Power up external peripherals: P-channel MOSFET gate LOW turns it ON
   digitalWrite(PIN_BATTERY_LOAD, LOW);    // Keep load off initially
 
   // Serial communication and ADC configuration
@@ -464,13 +489,8 @@ void RESTORE_CHARGING_STATE() {
 // ============================================================================
 void loop() {
 
-  HANDLE_AUDIO_CONTROL();            // Automatic audio control or volume-control feedback
-  BATTERY_CHARGE_CHECK();            // System maintenance
-  HANDLE_FEEDBACK();                 // Feedback and deadband handling
-  HANDLE_STATUS();                   // RGB status and periodic serial-data indication
-  HANDLE_IR();                       // IR reception and repeat timeout handling
-  //rawCode();                       // Identify and inspect IR codes
-  
+  NORMAL_OPERATION();
+
   GO_TO_SLEEP(false, HOURS(1));      // Put Arduino to sleep after 1 hour of inactivity
 }
 
@@ -488,7 +508,7 @@ void HANDLE_FEEDBACK() {
     WAKE_UP_TRIGGERED = false;    // Clear wake-up flag
   }
   // 3. Feedback timer active only if not charging
-  if (!CHARGING_ACTIVE && VOLUME_CONTROL_ACTIVE) {
+  if (!CHARGING_ACTIVE && VOLUME_CONTROL_ACTIVE && !MUTED) {
     FEEDBACK_ON(SECONDS(30));
     FEEDBACK_OFF(SECONDS(1));
   }
@@ -527,9 +547,12 @@ void HANDLE_IR() {
 // ============================================================================
 void HANDLE_AUDIO_CONTROL() {
 
-  if (!VOLUME_CONTROL_ACTIVE)
+  if (MUTED)
     // Microphone listening disabled - show volume-control feedback pattern
-    FEEDBACK_PATTERN(30, 220, 0, 220, 0, 220, 0, MS(300), MS(300), MS(500), SECONDS(2), false, 0);
+    FEEDBACK_PATTERN(0, 220, 0, 220, 0, 220, 0, MS(100), MS(1760), MS(100), MS(1760), false, 0);
+  else if (!VOLUME_CONTROL_ACTIVE)
+    // Microphone listening disabled - show volume-control feedback pattern
+    FEEDBACK_PATTERN(30, 220, 0, 220, 0, 220, 0, MS(300), MS(200), SECONDS(1), SECONDS(3), false, 0);
   else
     // Microphone listening enabled - automatic audio adjustment
     AUDIO_CONTROL_MODE();
@@ -546,6 +569,6 @@ void HANDLE_STATUS() {
     }
   } else if (SERIAL_DATA_PRINT_ACTIVE) {
     // Beep every 5 minutes while serial-data print is active
-    MY_TONE_REPEAT(3800, 20, 2, MINUTES(5));
+    MY_TONE_REPEAT(3700, 30, 2, MINUTES(5));
   }
 }
