@@ -212,7 +212,7 @@ uint8_t LAST_IR_CODE                        = 0;
 uint8_t CONSECUTIVE_IR_CODE_COUNT           = 0;
 unsigned long LAST_IR_SIGNAL_TIME           = 0;
 unsigned long LAST_PROCESSED_SIGNAL_TIME    = 0;
-const uint8_t SIGNAL_INTERVAL               = 20;
+const uint8_t SIGNAL_INTERVAL               = 5;
 const uint8_t REPEAT_INTERVAL               = 1;
 static bool IR_CODE_REPEATING               = false;
 
