@@ -29,26 +29,6 @@
 #include <EEPROM.h>
 
 // ============================================================================
-// Global Serial information output switch
-// Set DEBUG to 1 to enable info.print()/info.println() messages.
-// Set DEBUG to 0 to disable them.
-// ============================================================================
-#define DEBUG 0
-
-#if DEBUG
-
-#define info Serial
-
-#else
-struct Info {
-  template <typename... T> void print(T...) {}
-  template <typename... T> void println(T...) {}
-};
-
-Info info;
-#endif
-
-// ============================================================================
 // PIN DEFINITIONS - Hardware connections
 // ============================================================================
 
@@ -295,6 +275,26 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false);
 
 void TIME_TO_WAKE_UP();
 void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 0, uint32_t SECONDS = 0);
+
+// ============================================================================
+// Global Serial information output switch
+// Set DEBUG to 1 to enable info.print()/info.println() messages.
+// Set DEBUG to 0 to disable them.
+// ============================================================================
+#define DEBUG 0
+
+#if DEBUG
+
+#define info Serial
+
+#else
+struct Info {
+  template <typename... T> void print(T...) {}
+  template <typename... T> void println(T...) {}
+};
+
+Info info;
+#endif
 
 // ============================================================================
 // IR CODE INSPECTION MODE
