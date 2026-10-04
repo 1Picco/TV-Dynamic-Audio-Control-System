@@ -236,7 +236,7 @@ void FEEDBACK_MODE(byte mode) {
       // Battery voltage >= 3.50 V: orange
       // Battery voltage <  3.50 V: red
       if (currentVoltage_mV >= 3560) led.fadeIn(0, 100, 10, 35, 165);
-      else if (currentVoltage_mV >= 3500) led.fadeIn(100, 50, 0, 35, 165);
+      else if (currentVoltage_mV >= 3500) led.fadeIn(100, 35, 0, 35, 165);
       else led.fadeIn(100, 10, 0, 35, 165);
       break;
 
@@ -252,7 +252,7 @@ void FEEDBACK_MODE(byte mode) {
       // Battery voltage >= 3.50 V: orange
       // Battery voltage <  3.50 V: red
       if (currentVoltage_mV >= 3560) led.fadeOut(0, 100, 10, 30, 1000);
-      else if (currentVoltage_mV >= 3500) led.fadeOut(100, 50, 0, 30, 1000);
+      else if (currentVoltage_mV >= 3500) led.fadeOut(100, 35, 0, 30, 1000);
       else led.fadeOut(100, 10, 0, 30, 1000);
       break;
   }
@@ -301,17 +301,17 @@ void DEADBAND_FEEDBACK() {
 
   uint16_t voltage = VOLTAGE;
 
-  /*                                    -- RED -- - GREEN - -- BLUE --    */
+  /*                                    -- RED ---- GREEN ---- BLUE --    */
   if (voltage >= 3560) {            //  min  max  min  max  min  max
     if      (DEADBAND_COUNTER > 0) FADE(  0,   0, 100,  75,  5, 250);
     else if (DEADBAND_COUNTER < 0) FADE(  0,  75, 100,   0,  5, 150);
   }
   else if (voltage >= 3500) {
-    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  50,  75,   0, 250);
+    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  50,  75,   0, 200);
     else if (DEADBAND_COUNTER < 0) FADE(100,  75,  50,   0,   0, 150);
   }
   else {
-    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  10,  75,   0, 250);
+    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  10,  75,   0, 200);
     else if (DEADBAND_COUNTER < 0) FADE(100,  75,  10,   0,   0, 150);
   }
 
