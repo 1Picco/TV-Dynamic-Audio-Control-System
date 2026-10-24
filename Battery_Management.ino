@@ -1,13 +1,21 @@
 // ============================================================================
 // BATTERY MANAGEMENT FUNCTIONS
 // ============================================================================
-
 // Measure battery voltage and return the result in millivolts (mV).
 // Reads the ADC voltage at the divider output and applies the voltage
-// divider ratio to calculate the actual battery voltage.
-uint16_t GET_BATTERY_VOLTAGE_mV() {
+// divider ratio to calculate the actual battery voltage, and 
+// if needed add the calibration correction.
+
+uint16_t GET_BATTERY_VOLTAGE() {
+
+  // ADC reading (0-1023) -> mV at the ADC pin A3 (divider output).
+  // 3360 = ADC reference in mV (VCC pin voltage 3.360V)
   uint32_t raw_mV = ((uint32_t)analogRead(PIN_BATTERY_VOLTAGE) * 3360UL) / 1023UL;
-  return (uint16_t)((raw_mV * 13260UL) / 10000UL);
+
+  // Multiply raw_mV by 1.326 (voltage divider ratio (3.26K + 10K) / 10K = 1.326)
+  // Then add the calibration correction.
+  uint16_t milivolt = (uint32_t)((raw_mV * 13260UL) / 10000UL) + BATTERY_VOLTAGE_OFFSET;
+  return (uint16_t)milivolt;
 }
 
 // ============================================================================
