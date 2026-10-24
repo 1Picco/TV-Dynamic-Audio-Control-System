@@ -67,12 +67,6 @@ enum FEEDBACK_MODE : uint8_t {
 };
 
 // ============================================================================
-// HARDWARE CONSTANTS
-// ============================================================================
-// const float R1 = 3260.0f;    // 3.26K Resistor connected to battery positive terminal (VOLTAGE divider)
-// const float R2 = 10000.0f;   // 10K Resistor connected to ground (VOLTAGE divider)
-
-// ============================================================================
 // AUDIO PROCESSING CONSTANTS
 // ============================================================================
 // Audio processing constants should NOT be #define macros.
@@ -122,10 +116,10 @@ const uint8_t EEPROM_CYCLE_SIZE           = 3;  // Addresses per setting for wea
 
 const unsigned long TIME_TO_CHECK_BATTERY_CHARGE_STATE = MINUTES(15);
 const unsigned long WAITE_FOR_VOLTAGE_STABILIZATION    = SECONDS(5);
-const unsigned long TIME_TO_READ_BATTERY_VOLTAGE       = MINUTES(10);
+const unsigned long TIME_TO_READ_BATTERY_VOLTAGE       = MINUTES(30);
 
-const uint16_t STOP_CHARGING_VOLTAGE                   = 4150;  // Stop charging if voltage is  4.14V
 const uint16_t START_CHARGING_VOLTAGE                  = 3450;  // Start charging if voltage is 3.45V
+const uint16_t STOP_CHARGING_VOLTAGE                   = 4150;  // Stop charging if voltage is  4.14V
 
 // ============================================================================
 // BATTERY VARIABLES (all voltage values in millivolts)
@@ -135,9 +129,9 @@ static bool LOAD_TEST_ACTIVE                 = false;
 static bool VOLTAGE_CAPTURED                 = false;
 static unsigned long LOAD_TEST_TIMER         = 0;
 
-uint16_t RAW_VOLTAGE                         = 0;  // Raw battery voltage in mV
-uint16_t VOLTAGE                             = 0;  // Battery voltage in mV
-uint16_t VOLTAGE_DURING_PAUSED_CHARGING      = 0;  // Battery voltage during charging pause, in mV
+const uint8_t BATTERY_VOLTAGE_OFFSET         = 20;   // Calibration correction in mV (tune against a multimeter)
+uint16_t VOLTAGE                             = 0;
+uint16_t VOLTAGE_DURING_PAUSED_CHARGING      = 0;
 unsigned long PREVIOUS_VOLTAGE_READING       = 0;
 unsigned long LAST_TIME_VOLTAGE_READING      = 0;
 unsigned long PAUSE_CHARGING_TO_READ_VOLTAGE = 0;
