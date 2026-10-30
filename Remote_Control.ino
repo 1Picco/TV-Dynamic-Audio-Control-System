@@ -18,10 +18,14 @@ void REMOTE_CONTROL_MODE() {
     // Send Samsung Volume Down and provide red LED feedback.
     // A held/repeating command uses a steady LED; a single command flashes.
     case 0x11:
-      sendSamsungCode(0x0B);
-      MUTED = false;
-      if (!CHARGING_ACTIVE) {
-        IR_CODE_REPEATING ? led.setColor(250, 20, 0) : led.flash(250, 0, 0, 30, 0, 0);
+
+      sendSamsungCode(0x0B);        // Send Vol - signal
+      MUTED = false;                // Deactivates TV MUTED function if was enabled.
+      info.println(F("Volume -"));
+
+      if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
+        // If single button pess flash LED RED, else if button is hold pressed set LED RED.
+        IR_CODE_REPEATING ? led.setColor(220, 20, 0) : led.flash(220, 20, 0, 30, 0, 0);
       }
       break;
 
@@ -29,14 +33,17 @@ void REMOTE_CONTROL_MODE() {
     // Send Samsung Volume Up and provide green LED feedback.
     // A held/repeating command uses a steady LED; a single command flashes.
     case 0x10:
-      sendSamsungCode(0x07);
-      MUTED = false;
-      if (!CHARGING_ACTIVE) {
-        IR_CODE_REPEATING ? led.setColor(20, 250, 0) : led.flash(0, 250, 0, 50, 0, 0);
+      sendSamsungCode(0x07);        // Send Vol + signal
+      MUTED = false;                //Deactivates TV MUTED function if was enabled.
+      info.println(F("Volume + :"));
+
+      if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
+        // If single button pess flash LED GREEN, else if button is hold pressed set LED GREEN.
+        IR_CODE_REPEATING ? led.setColor(40, 220, 0) : led.flash(40, 220, 0, 30, 0, 0);
       }
       break;
 
-    // DEADBAND - (shrink window)
+    // DEADBAND - (shrink detection window)
     // Reduce the audio deadband so the system reacts to smaller changes
     // around the current audio baseline.
     // The adjustment is limited to MAX_SHRINK_STEPS.
@@ -52,14 +59,14 @@ void REMOTE_CONTROL_MODE() {
       // to indicate that no further adjustment is possible.
       if (DEADBAND_COUNTER <= -MAX_SHRINK_STEPS) {
         MY_TONE(3750, -250, 15, 2);
-        led.flash(220, 220, 220, 50, 50, 2);
+        led.flash(220, 220, 200, 50, 50, 2);
       } else {
         MY_TONE(3000, 40, 1);
-        led.flash(100, 0, 255, 50, 20, 1);
+        led.flash(100, 0, 100, 50, 20, 1);
       }
       break;
 
-    // DEADBAND + (expand window)
+    // DEADBAND + (expand detection window)
     // Increase the audio deadband so larger changes are required
     // before the audio level is considered to have changed.
     // The adjustment is limited to MAX_EXPAND_STEPS.
@@ -75,10 +82,10 @@ void REMOTE_CONTROL_MODE() {
       // to indicate that no further adjustment is possible.
       if (DEADBAND_COUNTER >= MAX_EXPAND_STEPS) {
         MY_TONE(3250, +250, 15, 2);
-        led.flash(220, 220, 220, 50, 50, 2);
+        led.flash(220, 220, 200, 50, 50, 2);
       } else {
         MY_TONE(3500, 40, 1);
-        led.flash(0, 80, 250, 50, 20, 1);
+        led.flash(0, 75, 220, 50, 20, 1);
       }
       break;
 
@@ -91,6 +98,8 @@ void REMOTE_CONTROL_MODE() {
 
         if (!CHARGING_CYCLE_COMPLETE) {
           // Start charging and mark the cycle as active.
+          info.println(F("Battery charging STARTED by user."));
+
           digitalWrite(PIN_CHARGE_CONTROL, HIGH);
           eepromWearLevelWrite(EEPROM_CHARGING_ACTIVE_BASE, true);
           LOW_VOLTAGE_START_CHARGING = true;
@@ -100,6 +109,8 @@ void REMOTE_CONTROL_MODE() {
           MY_TONE(3250, +250, 20, 2);
         } else {
           // Stop charging and clear the charging-related state.
+          info.println(F("Battery charging STOPPED by user."));
+
           digitalWrite(PIN_CHARGE_CONTROL, LOW);
           eepromWearLevelWrite(EEPROM_CHARGING_ACTIVE_BASE, false);
           LOW_VOLTAGE_START_CHARGING = false;
@@ -114,9 +125,10 @@ void REMOTE_CONTROL_MODE() {
       }
 
     // Reset
-    // Flash cyan feedback and perform a hardware reset of the Arduino.
+    // Flash cyan feedback and perform a hardware reset by pulling
+    // arduino RESET pin LOW trough 1K resistor.
     case 0x31:
-      led.flash(0, 250, 100, 50, 100, 2);
+      led.flash(0, 100, 100, 80, 100, 2);
       arduinoReset();
       break;
 
@@ -126,7 +138,11 @@ void REMOTE_CONTROL_MODE() {
     case 0x3C:
       MY_TONE_ENABLED = !MY_TONE_ENABLED;
       if (MY_TONE_ENABLED) MY_TONE(4000, 30, 1);
-      MY_TONE_ENABLED ? led.flash(0, 250, 0, 30, 50, 2) : led.flash(250, 0, 0, 30, 50, 2);
+      MY_TONE_ENABLED ? led.flash(0, 220, 0, 30, 50, 2) : led.flash(220, 0, 0, 30, 50, 2);
+
+      if (MY_TONE_ENABLED) info.println(F("TONE FEEDBACK: ENABLED"));
+      else                 info.println(F("TONE FEEDBACK: DISABLED"));
+
       delay(MS(250));
       break;
 
@@ -135,12 +151,15 @@ void REMOTE_CONTROL_MODE() {
     // Otherwise, it toggles automatic volume control on/off.
     case 0x0D:
       if (!MY_TONE_ENABLED) {
-        sendSamsungCode(0x0F); // Mute
+        sendSamsungCode(0x0F);   // Send MUTE signal.
         MUTED = !MUTED;
       } else {
         VOLUME_CONTROL_ACTIVE = !VOLUME_CONTROL_ACTIVE;
-        VOLUME_CONTROL_ACTIVE ? led.flash(0, 250, 0, 30, 50, 2) : led.flash(250, 0, 0, 30, 50, 2);
+        VOLUME_CONTROL_ACTIVE ? led.flash(0, 220, 0, 30, 50, 2) : led.flash(220, 0, 0, 30, 50, 2);
       }
+      if (VOLUME_CONTROL_ACTIVE) info.println(F("TV volume MUTED"));
+      else                       info.println(F("TV volume ACTIVE"));
+
       delay(MS(250));
       break;
 
@@ -155,7 +174,7 @@ void REMOTE_CONTROL_MODE() {
 
       // Open the TV menu (HOME) containing the Jellyfin app and TV source.
       sendSamsungCode(0x79);
-      led.flash(SELECT_JELLYFIN ? 0 : 220, SELECT_JELLYFIN ? 200 : 220, SELECT_JELLYFIN ? 200 : 220, 250, 550, 1);
+      led.flash(SELECT_JELLYFIN ? 0 : 220, SELECT_JELLYFIN ? 100 : 220, SELECT_JELLYFIN ? 100 : 200, 250, 550, 1);
 
       // Move left or right twice to select Jellyfin or the TV source.
       for (byte repeat = 0; repeat < 2; repeat++) {
@@ -167,7 +186,7 @@ void REMOTE_CONTROL_MODE() {
       sendSamsungCode(0x68);
 
       // Final feedback indicates the selected Jellyfin/source state.
-      led.flash(SELECT_JELLYFIN ? 0 : 220, SELECT_JELLYFIN ? 200 : 220, SELECT_JELLYFIN ? 200 : 220, 50, 85, 2);
+      led.flash(SELECT_JELLYFIN ? 0 : 220, SELECT_JELLYFIN ? 100 : 220, SELECT_JELLYFIN ? 100 : 200, 50, 85, 2);
       break;
 
     // Sleep
@@ -180,23 +199,27 @@ void REMOTE_CONTROL_MODE() {
     // Send the Samsung Power command and then put the controller to sleep.
     case 0x0C:
       sendSamsungCode(0x02);
+      led.flash(220, 220, 200, 50, 1000, 1);
       GO_TO_SLEEP(true);
       break;
 
     // Verify battery voltage
     // Display the battery voltage using the dedicated LED feedback sequence.
     case 0x9F:
+      info.println(F("Blink battery voltage."));
       VERIFY_BATTERY_VOLTAGE();
       break;
 
     // PLAY
     case 0x2C:
       sendSamsungCode(0x47);
+      info.println(F("PLAY video."));
       break;
 
     // PAUSE
     case 0x30:
       sendSamsungCode(0x4A);
+      info.println(F("PAUSE video."));
       break;
 
     // Toggle Serial Print Data
@@ -216,6 +239,11 @@ void REMOTE_CONTROL_MODE() {
       SELECT_HDMI = !SELECT_HDMI;
       sendSamsungCode(SELECT_HDMI ? 0x8B : 0x1B);
       eepromWearLevelWrite(EEPROM_HDMI_SELECT_BASE, SELECT_HDMI);
+
+      if (SELECT_HDMI) info.println(F("HDMI source selected."));
+      else             info.println(F("TV source selected."));
+
+      delay(MS(500));
       break;
 
     // Unmatched command -> fallback to generic repeat blink
