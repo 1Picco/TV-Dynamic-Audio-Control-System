@@ -6,6 +6,7 @@
 // ============================================================================
 // Filters incoming IR signals and prepares valid commands for processing.
 // Rejects unwanted protocols, invalid values, and signals received too quickly.
+// No Debug print here, slows down signal processing.
 
 bool SIGNAL_FILTER() {
 
@@ -17,7 +18,7 @@ bool SIGNAL_FILTER() {
 
   // Reject unsupported NEC signals, unknown protocols, or oversized values.
   if (results.decode_type == NEC || results.decode_type == UNKNOWN || results.value > 0xFFFFF) {
-    led.flash(30, 30, 250, 35, 80, 2); // Purple error blink
+    led.flash(40, 0, 200, 35, 80, 2); // Purple error blink
     MY_TONE(3800, 10, 2);
     irrecv.resume();
     return false;
@@ -76,21 +77,22 @@ const uint8_t SAMSUNG_CMD[] PROGMEM = {
   0x09, 0x0A, 0x0C, 0x0D, 0x0E, 0x11
 };
 
-const byte IR_TO_SAMSUNG_SIZE = 24;
+//const byte IR_TO_SAMSUNG_SIZE = 24;
+const byte IR_TO_SAMSUNG_SIZE = sizeof(SAMSUNG_CMD);
 
 // ============================================================================
 // REMOTE CONTROL FUNCTIONS
 // ============================================================================
 // Send a Samsung IR command to the TV.
 // The command can be supplied directly or read from the SAMSUNG_CMD lookup table.
-
 void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
-  uint8_t command = cmd;
+  //void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
+  // uint8_t command = cmd;
 
   // When lookup mode is used, cmd is the index of the required Samsung command.
   if (use_lookup) {
     if (cmd < IR_TO_SAMSUNG_SIZE) {
-      command = pgm_read_byte(&SAMSUNG_CMD[cmd]);
+      cmd = pgm_read_byte(&SAMSUNG_CMD[cmd]);
     } else {
       return;  // Invalid index
     }
@@ -102,7 +104,7 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
   // Send one Samsung command to the TV.
   // 0x707 is the Samsung address used by this TV.
   //delay(MS(1));
-  IrSender.sendSamsung(0x707, command, 1);
+  IrSender.sendSamsung(0x707, cmd, 1);
 
   // Allow the transmission to finish before restarting IR reception.
   delay(MS(1));
@@ -155,7 +157,7 @@ void RESET_FEEDBACK_TIMERS() {
 }
 
 // ============================================================================
-// MY_TONE - Original version
+// MY_TONE
 // Plays the same frequency for all beeps.
 //
 // Example:
@@ -163,7 +165,6 @@ void RESET_FEEDBACK_TIMERS() {
 // ============================================================================
 
 void MY_TONE(uint16_t frequency, uint8_t duration, uint8_t beepCount) {
-
   MY_TONE(frequency, 0, duration, beepCount);
 }
 
@@ -213,7 +214,6 @@ void MY_TONE(uint16_t frequency, int16_t frequencyStep,
 
       digitalWrite(11, HIGH);
       delayMicroseconds(halfPeriodMicros);
-
       digitalWrite(11, LOW);
       delayMicroseconds(halfPeriodMicros);
     }
@@ -242,7 +242,6 @@ void MY_TONE_REPEAT(uint16_t frequency, uint8_t duration, uint8_t beepCount, uns
     }
     return;
   }
-
   played = false;               // Allow one-shot again after leaving one-shot mode
 
   if (millis() - lastTrigger >= interval) {
@@ -282,8 +281,6 @@ uint16_t analogReadFiltered() {
 AsyncDelay READ_ANALOG_DATADelay;  // Timer for reading analog values
 
 void READ_ANALOG_DATA(bool READ_NOW = false) {
-
-  auto now = millis();
 
   // Read the potentiometers when the interval has elapsed,
   // or immediately when a forced reading is requested.
@@ -332,7 +329,7 @@ void FUNCTION_MODE_TOGGLE() {
       MY_TONE(4000, -350, 30, 2);
       FIRST_RGB_RUN = true;
       RESET_FEEDBACK_TIMERS();
-      led.flash(220, 220, 220, 30, 100, 2);
+      led.flash(220, 220, 200, 30, 100, 2);
 
     } else {
       // Enter RGB color-edit mode.
@@ -363,9 +360,8 @@ void FUNCTION_MODE_TOGGLE() {
 // EEPROM Wear Leveling Functions - Reduce EEPROM wear
 // ============================================================================
 // Each slot stores a compact 1-byte record:
-// bit 0   -> boolean value
+// bit 0    -> boolean value
 // bits 1-7 -> sequence counter (8-bit wrap-around counter used for newest-value selection)
-
 
 // Write with wear leveling - spreads writes across multiple addresses
 void eepromWearLevelWrite(int8_t baseAddress, bool value) {
