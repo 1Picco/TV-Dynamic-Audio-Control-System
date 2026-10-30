@@ -12,6 +12,7 @@ void TIME_TO_WAKE_UP() {
 // ============================================================================
 // Function to put Arduino into deep sleep mode for power saving
 // Implements sleep/wake cycle with IR wake-up detection and proper system restoration
+// No Debug print here, because it slightly affects timing.
 
 void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
   uint32_t timeToSleep = (HOURS + MINUTES + SECONDS);
@@ -23,7 +24,7 @@ void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 
 
     // Flash white indicator before shutting down.
     // Turn the LED off afterwards to minimize current consumption during sleep.
-    led.flash(220, 220, 220, 30, 85, 3);
+    led.flash(220, 220, 200, 30, 85, 3);
     led.off();
 
     // Main sleep/wake cycle.
@@ -158,6 +159,6 @@ void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 
     REQUEST_BATTERY_VOLTAGE_READING();
 
     // White flash indicates that normal active operation has resumed.
-    led.flash(220, 220, 220, 30, 0, 0);
+    led.flash(220, 220, 200, 30, 0, 0);
   }
 }
