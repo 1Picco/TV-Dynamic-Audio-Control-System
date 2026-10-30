@@ -129,7 +129,7 @@ static bool LOAD_TEST_ACTIVE                 = false;
 static bool VOLTAGE_CAPTURED                 = false;
 static unsigned long LOAD_TEST_TIMER         = 0;
 
-const uint8_t BATTERY_VOLTAGE_OFFSET         = 20;   // Calibration correction in mV (tune against a multimeter)
+const uint8_t BATTERY_VOLTAGE_OFFSET         = 19;   // Calibration correction in mV (tune against a multimeter)
 uint16_t VOLTAGE                             = 0;
 uint16_t VOLTAGE_DURING_PAUSED_CHARGING      = 0;
 unsigned long PREVIOUS_VOLTAGE_READING       = 0;
@@ -305,8 +305,7 @@ Info info;
 
 #else
 
-void NORMAL_OPERATION()
-{
+void NORMAL_OPERATION() {
   HANDLE_AUDIO_CONTROL();            // Automatic audio control or volume-control feedback
   BATTERY_CHARGE_CHECK();            // System maintenance
   HANDLE_FEEDBACK();                 // Feedback and deadband handling
@@ -484,7 +483,6 @@ void RESTORE_CHARGING_STATE() {
 void loop() {
 
   NORMAL_OPERATION();
-
   GO_TO_SLEEP(false, HOURS(1));      // Put Arduino to sleep after 1 hour of inactivity
 }
 
@@ -494,6 +492,8 @@ void loop() {
 
 void HANDLE_FEEDBACK() {
 
+  uint16_t voltage = VOLTAGE;
+
   // 1. Run deadband pulse pattern if active
   if (DEADBAND_COUNTER != 0) DEADBAND_FEEDBACK();
 
@@ -501,8 +501,12 @@ void HANDLE_FEEDBACK() {
   if (WAKE_UP_TRIGGERED) {
     WAKE_UP_TRIGGERED = false;    // Clear wake-up flag
   }
-  // 3. Feedback timer active only if not charging
+  // 3. Feedback timer active for shorter time if battery low and only if not charging.
   if (!CHARGING_ACTIVE && VOLUME_CONTROL_ACTIVE && !MUTED) {
+    if (voltage < 3500) {
+      FEEDBACK_ON(SECONDS(10));
+      FEEDBACK_OFF(SECONDS(2));
+    }
     FEEDBACK_ON(SECONDS(30));
     FEEDBACK_OFF(SECONDS(1));
   }
@@ -543,10 +547,10 @@ void HANDLE_AUDIO_CONTROL() {
 
   if (MUTED)
     // Microphone listening disabled - show volume-control feedback pattern
-    FEEDBACK_PATTERN(0, 220, 0, 220, 0, 220, 0, MS(100), MS(1760), MS(100), MS(1760), false, 0);
+    FEEDBACK_PATTERN(0, 220, 0, 220, 0, 200, 0, MS(100), MS(1760), MS(100), MS(1760), false, 0);
   else if (!VOLUME_CONTROL_ACTIVE)
     // Microphone listening disabled - show volume-control feedback pattern
-    FEEDBACK_PATTERN(30, 220, 0, 220, 0, 220, 0, MS(300), MS(200), SECONDS(1), SECONDS(3), false, 0);
+    FEEDBACK_PATTERN(30, 220, 0, 220, 0, 200, 0, MS(300), MS(200), SECONDS(1), SECONDS(3), false, 0);
   else
     // Microphone listening enabled - automatic audio adjustment
     AUDIO_CONTROL_MODE();
