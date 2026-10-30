@@ -1,4 +1,90 @@
 // ============================================================================
+// Function to provide LED feedback based on system state and battery voltage.
+// Controls RGB LED colors and patterns for different system modes.
+// ============================================================================
+
+// Display RGB feedback based on battery voltage and operating mode.
+
+void FEEDBACK_MODE(byte mode) {
+
+  // Do not show battery feedback while charging, while charging is paused,
+  // when remote control mode is inactive, when volume control is inactive,
+  // or while the TV volume is being automatically restored.
+  if (CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
+      !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
+
+  // Battery status feedback is only updated when the deadband counter
+  // has expired, preventing unnecessary repeated LED updates.
+  // if (mode == BATTERY_VOLTAGE_STATUS && DEADBAND_COUNTER != 0 && !VOLUME_CONTROL_ACTIVE && VOLUME_REDUCTION_COUNTER > 0) return;
+
+  if (mode == BATTERY_VOLTAGE_STATUS && DEADBAND_COUNTER != 0) return;
+
+  // Use the most recently measured battery voltage.
+  uint16_t currentVoltage_mV = VOLTAGE;
+
+  switch (mode) {
+
+    // ------------------------------------------------------------------------
+    // BLINK
+    // Used for IR feedback.
+    // Repeating IR commands show a steady battery-status color.
+    // Non-repeating valid IR commands produce a short color flash.
+    // ------------------------------------------------------------------------
+
+    case BLINK:
+      if (IR_CODE_REPEATING) {
+
+        // Battery voltage >= 3.56 V: green
+        // Battery voltage >= 3.50 V: yellow
+        // Battery voltage <  3.50 V: red
+        if (currentVoltage_mV >= 3560) led.setColor(0, 220, 50);
+        else if (currentVoltage_mV >= 3500) led.setColor(220, 70, 0);
+        else led.setColor(220, 5, 5);
+
+      } else {
+
+        // Valid non-repeating IR command: briefly flash the
+        // color corresponding to the current battery voltage.
+        if (currentVoltage_mV >= 3560) led.flash(10, 220, 10, 30, 0, 0);
+        else if (currentVoltage_mV >= 3500) led.flash(220, 40, 0, 30, 0, 0);
+        else led.flash(220, 0, 0, 30, 0, 0);
+      }
+      break;
+
+    // ------------------------------------------------------------------------
+    // BATTERY_VOLTAGE_STATUS
+    // Display the current battery status using fade-in to color.
+    // ------------------------------------------------------------------------
+
+    case BATTERY_VOLTAGE_STATUS:
+
+      // Battery voltage >= 3.56 V: green
+      // Battery voltage >= 3.50 V: yellow
+      // Battery voltage <  3.50 V: red
+      if (currentVoltage_mV >= 3560) led.fadeIn(0, 50, 5, 35, 165);
+      else if (currentVoltage_mV >= 3500) led.fadeIn(65, 40, 0, 35, 165);
+      else led.fadeIn(50, 0, 0, 35, 165);
+      break;
+
+    // ------------------------------------------------------------------------
+    // RGB_LED_OFF
+    // Fade out the current battery-status color.
+    // The color used for the fade-out corresponds to the current voltage.
+    // ------------------------------------------------------------------------
+
+    case RGB_LED_OFF:
+
+      // Battery voltage >= 3.56 V: green
+      // Battery voltage >= 3.50 V: yellow
+      // Battery voltage <  3.50 V: red
+      if (currentVoltage_mV >= 3560) led.fadeOut(0, 50, 5, 30, 1000);
+      else if (currentVoltage_mV >= 3500) led.fadeOut(65, 40, 0, 30, 1000);
+      else led.fadeOut(50, 0, 0, 30, 1000);
+      break;
+  }
+}
+
+// ============================================================================
 // FEEDBACK_PATTERN — Non-blocking RGB LED feedback pattern
 // ============================================================================
 // Creates a smooth RGB LED effect used to visually indicate system status.
@@ -81,14 +167,13 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
   unsigned long elapsed = now - stateStart;
 
   // Charge logic initialization
-  if (USE_CHARGE_LOGIC && !previousChargeLogic) {
-    firstVoltageReading = true;
-  }
-  previousChargeLogic = USE_CHARGE_LOGIC;
-
-  if (USE_CHARGE_LOGIC && firstVoltageReading) {
-    lockedVoltage_mV = VOLTAGE;
-    firstVoltageReading = false;
+  if (USE_CHARGE_LOGIC) {
+    if (!previousChargeLogic) {
+      lockedVoltage_mV = VOLTAGE;
+    }
+    previousChargeLogic = true;
+  } else {
+    previousChargeLogic = false;
   }
 
   // Selected voltage (fixed 3000mV threshold)
@@ -175,89 +260,6 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 }
 
 // ============================================================================
-// Function to provide LED feedback based on system state and battery voltage.
-// Controls RGB LED colors and patterns for different system modes.
-// ============================================================================
-
-// Display RGB feedback based on battery voltage and operating mode.
-
-void FEEDBACK_MODE(byte mode) {
-
-  // Do not show battery feedback while charging, while charging is paused,
-  // when remote control mode is inactive, when volume control is inactive,
-  // or while the TV volume is being automatically restored.
-  if (CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
-      !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
-
-  // Battery status feedback is only updated when the deadband counter
-  // has expired, preventing unnecessary repeated LED updates.
-  if (mode == BATTERY_VOLTAGE_STATUS && DEADBAND_COUNTER != 0) return;
-
-  // Use the most recently measured battery voltage.
-  uint16_t currentVoltage_mV = VOLTAGE;
-
-  switch (mode) {
-
-    // ------------------------------------------------------------------------
-    // BLINK
-    // Used for IR feedback.
-    // Repeating IR commands show a steady battery-status color.
-    // Non-repeating valid IR commands produce a short color flash.
-    // ------------------------------------------------------------------------
-
-    case BLINK:
-      if (IR_CODE_REPEATING) {
-
-        // Battery voltage >= 3.56 V: green
-        // Battery voltage >= 3.50 V: yellow
-        // Battery voltage <  3.50 V: red
-        if (currentVoltage_mV >= 3560) led.setColor(0, 200, 20);
-        else if (currentVoltage_mV >= 3500) led.setColor(200, 200, 0);
-        else led.setColor(200, 20, 30);
-
-      } else {
-
-        // Valid non-repeating IR command: briefly flash the
-        // color corresponding to the current battery voltage.
-        if (currentVoltage_mV >= 3560) led.flash(0, 255, 0, 30, 0, 0);
-        else if (currentVoltage_mV >= 3500) led.flash(150, 140, 0, 30, 0, 0);
-        else led.flash(250, 0, 0, 30, 0, 0);
-      }
-      break;
-
-    // ------------------------------------------------------------------------
-    // BATTERY_VOLTAGE_STATUS
-    // Display the current battery status using fade-in to color.
-    // ------------------------------------------------------------------------
-
-    case BATTERY_VOLTAGE_STATUS:
-
-      // Battery voltage >= 3.56 V: green
-      // Battery voltage >= 3.50 V: orange
-      // Battery voltage <  3.50 V: red
-      if (currentVoltage_mV >= 3560) led.fadeIn(0, 100, 10, 35, 165);
-      else if (currentVoltage_mV >= 3500) led.fadeIn(100, 35, 0, 35, 165);
-      else led.fadeIn(100, 10, 0, 35, 165);
-      break;
-
-    // ------------------------------------------------------------------------
-    // RGB_LED_OFF
-    // Fade out the current battery-status color.
-    // The color used for the fade-out corresponds to the current voltage.
-    // ------------------------------------------------------------------------
-
-    case RGB_LED_OFF:
-
-      // Battery voltage >= 3.56 V: green
-      // Battery voltage >= 3.50 V: orange
-      // Battery voltage <  3.50 V: red
-      if (currentVoltage_mV >= 3560) led.fadeOut(0, 100, 10, 30, 1000);
-      else if (currentVoltage_mV >= 3500) led.fadeOut(100, 35, 0, 30, 1000);
-      else led.fadeOut(100, 10, 0, 30, 1000);
-      break;
-  }
-}
-// ============================================================================
 // DEADBAND_FEEDBACK — shows battery charge level as an LED color: green for
 // high voltage, orange for mid voltage, red for low voltage.
 // Within each level, the LED fades to cyan/teal if DEADBAND_COUNTER is positive, or to
@@ -276,7 +278,7 @@ static inline void FADE(
     minBlue,  maxBlue,
     0,                                           // blinkCount
     //Fade IN  Stay ON   Fade OFF   Stay OFF
-    MS(300),   MS(500),   MS(300),  SECONDS(2),
+    MS(150),   MS(500),   MS(250),  SECONDS(2),
     false, 0                                     // Charge logic disabled
   );
 }
@@ -301,20 +303,19 @@ void DEADBAND_FEEDBACK() {
 
   uint16_t voltage = VOLTAGE;
 
-  /*                                    -- RED ---- GREEN ---- BLUE --    */
+  /*                                   -- RED ----- GREEN ---- BLUE --    */
   if (voltage >= 3560) {            //  min  max  min  max  min  max
-    if      (DEADBAND_COUNTER > 0) FADE(  0,   0, 100,  75,  5, 250);
-    else if (DEADBAND_COUNTER < 0) FADE(  0,  75, 100,   0,  5, 150);
+    if      (DEADBAND_COUNTER > 0) FADE(  0,   0,  50, 55,  10, 220);
+    else if (DEADBAND_COUNTER < 0) FADE(  0, 100,  50,  0,  10,  50);
   }
   else if (voltage >= 3500) {
-    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  50,  75,   0, 200);
-    else if (DEADBAND_COUNTER < 0) FADE(100,  75,  50,   0,   0, 150);
+    if      (DEADBAND_COUNTER > 0) FADE( 65,   0,  35,  55,   0, 220);
+    else if (DEADBAND_COUNTER < 0) FADE( 65,  75,  35,   0,   0,  50);
   }
   else {
-    if      (DEADBAND_COUNTER > 0) FADE(100,   0,  10,  75,   0, 200);
-    else if (DEADBAND_COUNTER < 0) FADE(100,  75,  10,   0,   0, 150);
+    if      (DEADBAND_COUNTER > 0) FADE( 50,   0,   0,  55,   0, 220);
+    else if (DEADBAND_COUNTER < 0) FADE( 50, 150,  10,   0,   0, 100);
   }
-
 }
 
 // ============================================================================
@@ -322,18 +323,11 @@ void DEADBAND_FEEDBACK() {
 // After the specified time following an IR command, restore the normal
 // battery-voltage LED feedback.
 // ============================================================================
-
 void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
-  uint32_t FEEDBACK_LED_OFF_TIME = (MINUTES + SECONDS);
-
   if (FEEDBACK_OFF_ACTIVE) {
-
-    // Calculate the elapsed time since the feedback-off timer was started.
-    FEEDBACK_OFF_AFTER_IR_DETECTED_TIME = millis() - FEEDBACK_OFF_START_TIME;
-
-    // When the delay has elapsed, stop the timer and restore
-    // the normal battery-status LED feedback.
-    if (FEEDBACK_OFF_AFTER_IR_DETECTED_TIME >= FEEDBACK_LED_OFF_TIME) {
+    
+    // Check if the specified delay has elapsed since the timer started.
+    if (millis() - FEEDBACK_OFF_START_TIME >= (MINUTES + SECONDS)) {
       FEEDBACK_OFF_ACTIVE = false;
       FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
     }
@@ -344,18 +338,11 @@ void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
 // Function to control the duration of temporary LED feedback.
 // After the specified time, turn off the current feedback indication.
 // ============================================================================
-
 void FEEDBACK_ON(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
-  uint32_t FEEDBACK_LED_ON_TIME = (MINUTES + SECONDS);
-
   if (FEEDBACK_LED_ACTIVE) {
-
-    // Calculate the elapsed time since the feedback-on timer was started.
-    RGB_FEEDBACK_ACTIVE_TIME = millis() - RGB_FEEDBACK_START_TIME;
-
-    // When the feedback duration has elapsed, stop the timer and
-    // fade out the current LED feedback.
-    if (RGB_FEEDBACK_ACTIVE_TIME >= FEEDBACK_LED_ON_TIME) {
+    
+    // Check if the feedback duration has elapsed since the timer started.
+    if (millis() - RGB_FEEDBACK_START_TIME >= (MINUTES + SECONDS)) {
       FEEDBACK_LED_ACTIVE = false;
       FEEDBACK_MODE(RGB_LED_OFF);
     }
