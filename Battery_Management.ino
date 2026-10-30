@@ -3,7 +3,7 @@
 // ============================================================================
 // Measure battery voltage and return the result in millivolts (mV).
 // Reads the ADC voltage at the divider output and applies the voltage
-// divider ratio to calculate the actual battery voltage, and 
+// divider ratio to calculate the actual battery voltage, and
 // if needed add the calibration correction.
 
 uint16_t GET_BATTERY_VOLTAGE() {
@@ -49,28 +49,24 @@ uint16_t READ_BATTERY_VOLTAGE() {
     // led.fadeIn(220, 220, 220, 15, 150);
   }
 
-  // Read the battery voltage after 2.9 seconds under load.
+  // Read the battery voltage after 2.95 seconds under load.
   // ===========================================================================
 
   if (LOAD_TEST_ACTIVE && !VOLTAGE_CAPTURED &&
-      (CURRENT_MILLIS - LOAD_TEST_TIMER >= 2900UL)) {
+      (CURRENT_MILLIS - LOAD_TEST_TIMER >= 2950UL)) {
 
     VOLTAGE_CAPTURED = true;
 
     // Read the loaded battery voltage and store the result in mV.
-    // The calculation is integer-only: ADC → mV at divider output,
-    // then apply the voltage divider ratio (R1 + R2) / R2 = 13260 / 10000.
-    VOLTAGE = GET_BATTERY_VOLTAGE_mV();
+    VOLTAGE = GET_BATTERY_VOLTAGE();
 
     if (!CHARGING_ACTIVE) {
-
       Serial.print(F("Battery state: "));
       Serial.print(VOLTAGE / 1000);                          // whole number
       Serial.print('.');
       Serial.print((VOLTAGE % 1000) / 100);                  // tenths
       Serial.print((VOLTAGE % 100) / 10);                    // hundredths
       Serial.println(F("V"));
-
     }
   }
 
@@ -150,7 +146,7 @@ void BATTERY_CHARGE_CHECK() {
 
     // White indicates that charging is temporarily paused
     // for a battery voltage measurement.
-    led.fadeIn(220, 220, 220, 15, 150);
+    led.fadeIn(220, 220, 200, 15, 150);
 
     info.println(F("Charging PAUSED to measure battery voltage."));
 
@@ -163,7 +159,7 @@ void BATTERY_CHARGE_CHECK() {
   if (CHARGING_PAUSED &&
       CURRENT_MILLIS - PAUSE_CHARGING_TO_READ_VOLTAGE >= WAITE_FOR_VOLTAGE_STABILIZATION) {
 
-    VOLTAGE_DURING_PAUSED_CHARGING = GET_BATTERY_VOLTAGE_mV();
+    VOLTAGE_DURING_PAUSED_CHARGING = GET_BATTERY_VOLTAGE();
 
     info.print(F("Stabilized battery voltage: "));
     info.print(VOLTAGE_DURING_PAUSED_CHARGING / 1000);
@@ -193,7 +189,7 @@ void BATTERY_CHARGE_CHECK() {
       digitalWrite(PIN_CHARGE_CONTROL, HIGH);
       info.println(F("Resume charging."));
 
-      led.fadeOut(220, 220, 220, 15, 150);
+      led.fadeOut(220, 220, 200, 15, 150);
       MY_TONE(4000, 20, 2);
     }
 
@@ -222,11 +218,15 @@ void VERIFY_BATTERY_VOLTAGE() {
 
   // Convert the voltage from mV to hundredths of a volt.
   // Example: 3450 mV -> 345 -> 3.45 V
-  uint16_t   millivolt    = VOLTAGE   / 10;
-  const byte wholeNumber = millivolt  / 100;
-  const byte tenths      = (millivolt / 10) % 10;
-  const byte hundredths  = millivolt  % 10;
-
+  const byte wholeNumber = VOLTAGE / 1000;
+  const byte tenths      = (VOLTAGE / 100) % 10;
+  const byte hundredths  = (VOLTAGE / 10) % 10;
+  /*
+    uint16_t   millivolt    = VOLTAGE   / 10;
+    const byte wholeNumber = millivolt  / 100;
+    const byte tenths      = (millivolt / 10) % 10;
+    const byte hundredths  = millivolt  % 10;
+  */
   // Display the three voltage digits using the corresponding LED colors.
   BLINK_BATTERY_VOLTAGE(wholeNumber, tenths, hundredths);
 }
@@ -245,10 +245,10 @@ void BLINK_DIGIT(byte count, byte red, byte green, byte blue, uint16_t pauseAfte
   }
 
   // Timing of one complete blink cycle.
-  const uint16_t fadeIn  = 200;
-  const uint16_t onTime  = 200;
-  const uint16_t fadeOut = 500;
-  const uint16_t offTime = 200;
+  static const uint16_t fadeIn  = 200;
+  static const uint16_t onTime  = 100;
+  static const uint16_t fadeOut = 350;
+  static const uint16_t offTime = 200;
 
   // Calculate the total time required for all blinks.
   unsigned long singleCycleDuration = (unsigned long)fadeIn + onTime + fadeOut + offTime;
@@ -289,21 +289,21 @@ void BLINK_BATTERY_VOLTAGE(byte wholeNumber, byte tenths, byte hundredths) {
   unsigned long startSeqBegin = millis();
 
   while (millis() - startSeqBegin < startSeqDuration) {
-    FEEDBACK_PATTERN(0, 220, 0, 220, 0, 220,
+    FEEDBACK_PATTERN(0, 220, 0, 220, 0, 200,
                      1, 200, 400, 200, 1500, false, 0);
   }
 
   // Whole volts: green.
-  BLINK_DIGIT(wholeNumber, 0, 250, 0, SECONDS(1));
+  BLINK_DIGIT(wholeNumber, 0, 220, 0, SECONDS(1));
 
   // Tenths: yellow.
-  BLINK_DIGIT(tenths, 255, 250, 0, SECONDS(1));
+  BLINK_DIGIT(tenths, 220, 100, 0, SECONDS(1));
 
   // Hundredths: red.
-  BLINK_DIGIT(hundredths, 255, 0, 0, SECONDS(1));
+  BLINK_DIGIT(hundredths, 220, 0, 0, SECONDS(1));
 
   // End indication: two short white flashes.
-  led.flash(220, 220, 220, 30, 50, 2);
+  led.flash(220, 220, 200, 30, 50, 2);
 
   // Turn the LED off and reset the feedback timers after the voltage
   // display sequence has completed.
