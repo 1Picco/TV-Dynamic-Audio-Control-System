@@ -168,7 +168,7 @@ void AUDIO_CONTROL_MODE() {
         {
           state = LoudConfirmed;  // It's confirmed, loud music
           info.println(F("Lower the volume."));
-          RESET_FEEDBACK_TIMERS();
+          led.fadeIn(250, 10, 0, 15, 150);
         } else {
           state = WaitForLoud;  // Wait for another one
         }
@@ -189,6 +189,7 @@ void AUDIO_CONTROL_MODE() {
           state = WaitForSilence;  // Go to the state of waiting for a quiet part (dialog)
           if (VOLUME_REDUCTION_COUNTER > 0) {
             info.println(F("Volume lowered."));
+            RESET_FEEDBACK_TIMERS();
           }
         }
       }
@@ -225,7 +226,7 @@ void AUDIO_CONTROL_MODE() {
         AbortRestoreDelay.Reset();  // Start a short delay
         state = AbortingRestore;    // New intermediate state
         info.println(F("Aborting volume restore!"));
-        if (!CHARGING_ACTIVE) led.setColor(250, 0, 0);
+        if (!CHARGING_ACTIVE) led.fadeIn(250, 10, 0, 15, 150);
         break;
       }
 
@@ -234,8 +235,7 @@ void AUDIO_CONTROL_MODE() {
       if (VOLUME_REDUCTION_COUNTER == 0) {
         state = Init;
         info.println(F("Volume restored."));
-        if (!CHARGING_ACTIVE) led.fadeOut(0, 250, 0, 30, 100);
-        //RESET_FEEDBACK_TIMERS();
+        if (!CHARGING_ACTIVE) led.fadeOut(0, 250, 0, 15, 150);
         FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
       }
       break;
@@ -258,9 +258,9 @@ void AUDIO_CONTROL_MODE() {
       if (!CHARGING_ACTIVE && VOLUME_REDUCTION_COUNTER > 0) {
         FEEDBACK_LED_ACTIVE = true;
 
-        if (DEADBAND_COUNTER > 0) FEEDBACK_PATTERN(0, 250, 20, 150, 100, 0, 0, 300, 100, 1000, 300, false, 0);
-        else if (DEADBAND_COUNTER < 0) FEEDBACK_PATTERN(75, 250, 0, 150, 100, 0, 0, 300, 100, 1000, 300, false, 0);
-        else FEEDBACK_PATTERN(25, 250, 10, 150, 0, 0, 0, 300, 100, 1000, 300, false, 0);
+        if (DEADBAND_COUNTER > 0) FEEDBACK_PATTERN(0, 220, 20, 75, 100, 0, 0, 200, 50, 1500, 300, false, 0);
+        else if (DEADBAND_COUNTER < 0) FEEDBACK_PATTERN(50, 220, 0, 75, 50, 0, 0, 200, 50, 1500, 300, false, 0);
+        else FEEDBACK_PATTERN(25, 220, 10, 75, 0, 0, 0, 200, 50, 1500, 300, false, 0);
       } else
         // But if we charging, fade battery voltage by dynamic colors
         if (digitalRead(PIN_CHARGE_CONTROL) == HIGH)
@@ -302,7 +302,7 @@ void PRINT_SERIAL_DATA(uint16_t audio) {
     // Print the current state name.
     // If the state value is outside the valid array range, print UNKNOWN
     // instead of accessing an invalid array element.
-    if (state >= 0 && state < (sizeof(StrStates) / sizeof(StrStates[0]))) {
+    if (state >= 0 && state < (int)(sizeof(StrStates) / sizeof(StrStates[0]))) {
       Serial.print(StrStates[state]);
     } else {
       Serial.print(F("UNKNOWN"));
