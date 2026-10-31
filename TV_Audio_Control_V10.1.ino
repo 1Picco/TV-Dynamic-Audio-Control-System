@@ -73,7 +73,7 @@ enum FEEDBACK_MODE : uint8_t {
 // Using const makes them type-safe and easier to debug.
 // ============================================================================
 
-#define MAX_EXPAND_STEPS 6  // 8 steps * 40 = 320 max range
+#define MAX_EXPAND_STEPS 6  // 6 steps * 40 = 240 max range
 #define MAX_SHRINK_STEPS 3   // 3 steps * 40 = 120 min range (or whatever you want)
 
 uint16_t AUDIO_BASELINE_HIGH        = 660;      // Upper threshold for loud audio detection
