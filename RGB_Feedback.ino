@@ -10,7 +10,7 @@ void FEEDBACK_MODE(byte mode) {
   // Do not show battery feedback while charging, while charging is paused,
   // when remote control mode is inactive, when volume control is inactive,
   // or while the TV volume is being automatically restored.
-  if (CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
+  if (LOAD_TEST_ACTIVE || CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
       !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
 
   // Battery status feedback is only updated when the deadband counter
@@ -260,30 +260,6 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 }
 
 // ============================================================================
-// DEADBAND_FEEDBACK — shows battery charge level as an LED color: green for
-// high voltage, orange for mid voltage, red for low voltage.
-// Within each level, the LED fades to cyan/teal if DEADBAND_COUNTER is positive, or to
-// purple if it's negative.
-// ============================================================================
-// Wrapper macro/function for standardized 5.75s LED fade pulse sequence.
-// ============================================================================
-static inline void FADE(
-  byte minRed,   byte maxRed,
-  byte minGreen, byte maxGreen,
-  byte minBlue,  byte maxBlue
-) {
-  FEEDBACK_PATTERN(
-    minRed,   maxRed,
-    minGreen, maxGreen,
-    minBlue,  maxBlue,
-    0,                                           // blinkCount
-    //Fade IN  Stay ON   Fade OFF   Stay OFF
-    MS(150),   MS(500),   MS(250),  SECONDS(2),
-    false, 0                                     // Charge logic disabled
-  );
-}
-
-// ============================================================================
 // Triggers LED color feedback based on battery voltage and deadband polarity.
 //
 // Early Exit:
@@ -303,7 +279,7 @@ void DEADBAND_FEEDBACK() {
 
   uint16_t voltage = VOLTAGE;
 
-  /*                                   -- RED ----- GREEN ---- BLUE --    */
+  /*                                   --- RED ---- GREEN --- BLUE --    */
   if (voltage >= 3560) {            //  min  max  min  max  min  max
     if      (DEADBAND_COUNTER > 0) FADE(  0,   0,  50, 55,  10, 220);
     else if (DEADBAND_COUNTER < 0) FADE(  0, 100,  50,  0,  10,  50);
@@ -325,7 +301,7 @@ void DEADBAND_FEEDBACK() {
 // ============================================================================
 void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
   if (FEEDBACK_OFF_ACTIVE) {
-    
+
     // Check if the specified delay has elapsed since the timer started.
     if (millis() - FEEDBACK_OFF_START_TIME >= (MINUTES + SECONDS)) {
       FEEDBACK_OFF_ACTIVE = false;
@@ -340,7 +316,7 @@ void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
 // ============================================================================
 void FEEDBACK_ON(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
   if (FEEDBACK_LED_ACTIVE) {
-    
+
     // Check if the feedback duration has elapsed since the timer started.
     if (millis() - RGB_FEEDBACK_START_TIME >= (MINUTES + SECONDS)) {
       FEEDBACK_LED_ACTIVE = false;
