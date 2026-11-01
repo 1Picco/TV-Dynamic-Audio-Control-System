@@ -270,6 +270,41 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false);
 void TIME_TO_WAKE_UP();
 void GO_TO_SLEEP(bool SLEEP_NOW = false, uint32_t HOURS = 0, uint32_t MINUTES = 0, uint32_t SECONDS = 0);
 
+
+// ============================================================================
+// FADE — provides LED fade feedback using selectable timing patterns.
+//
+// Used for:
+// - Deadband feedback.
+// - Audio warning: indicates that the volume has been lowered and the system
+//   is waiting for silence before restoring the volume.
+//
+// The audioLowered parameter selects the corresponding fade timing.
+// ============================================================================
+// Wrapper for FEEDBACK_PATTERN() with selectable fade timing.
+// ============================================================================
+
+static inline void FADE(
+  byte minRed,   byte maxRed,
+  byte minGreen, byte maxGreen,
+  byte minBlue,  byte maxBlue,
+  bool audioLowered = false
+) {
+  FEEDBACK_PATTERN(
+    minRed,   maxRed,
+    minGreen, maxGreen,
+    minBlue,  maxBlue,
+    0,                                            // Blink count
+    //            -audioLowered- -DEADBAND-       // Timing
+    audioLowered ?    MS(300)   :  MS(150),       // Fade IN
+    audioLowered ?    MS(100)   :  MS(500),       // Stay ON
+    audioLowered ?    MS(200)   :  MS(250),       // Fade OFF
+    audioLowered ?    MS(750)   : SECONDS(2),     // Stay OFF
+    false,                                        // Use charge logic?
+    0                                             // Voltage durring charging(related to charge logic)
+  );
+}
+
 // ============================================================================
 // Global Serial information output switch
 // Set DEBUG to 1 to enable info.print()/info.println() messages.
