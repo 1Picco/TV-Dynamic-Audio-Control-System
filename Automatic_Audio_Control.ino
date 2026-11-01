@@ -113,7 +113,6 @@ bool AUDIO_IS_QUIET(int audio) {
 // ============================================================================
 // Main Finite State Machine (FSM) - Core audio processing logic
 // Processes audio input and controls TV volume based on audio levels
-
 void AUDIO_CONTROL_MODE() {
 
   auto audio = analogReadFiltered();  // Read current audio level
@@ -168,7 +167,7 @@ void AUDIO_CONTROL_MODE() {
         {
           state = LoudConfirmed;  // It's confirmed, loud music
           info.println(F("Lower the volume."));
-          led.fadeIn(250, 10, 0, 15, 150);
+          led.fadeIn(250, 10, 0, 15, 80);
         } else {
           state = WaitForLoud;  // Wait for another one
         }
@@ -226,7 +225,7 @@ void AUDIO_CONTROL_MODE() {
         AbortRestoreDelay.Reset();  // Start a short delay
         state = AbortingRestore;    // New intermediate state
         info.println(F("Aborting volume restore!"));
-        if (!CHARGING_ACTIVE) led.fadeIn(250, 10, 0, 15, 150);
+        if (!CHARGING_ACTIVE) led.fadeIn(250, 10, 0, 15, 80);
         break;
       }
 
@@ -235,7 +234,7 @@ void AUDIO_CONTROL_MODE() {
       if (VOLUME_REDUCTION_COUNTER == 0) {
         state = Init;
         info.println(F("Volume restored."));
-        if (!CHARGING_ACTIVE) led.fadeOut(0, 250, 0, 15, 150);
+        if (!CHARGING_ACTIVE) led.fadeOut(0, 250, 0, 35, 165);
         FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
       }
       break;
@@ -258,9 +257,11 @@ void AUDIO_CONTROL_MODE() {
       if (!CHARGING_ACTIVE && VOLUME_REDUCTION_COUNTER > 0) {
         FEEDBACK_LED_ACTIVE = true;
 
-        if (DEADBAND_COUNTER > 0) FEEDBACK_PATTERN(0, 220, 20, 75, 100, 0, 0, 200, 50, 1500, 300, false, 0);
-        else if (DEADBAND_COUNTER < 0) FEEDBACK_PATTERN(50, 220, 0, 75, 50, 0, 0, 200, 50, 1500, 300, false, 0);
-        else FEEDBACK_PATTERN(25, 220, 10, 75, 0, 0, 0, 200, 50, 1500, 300, false, 0);
+        /*                                  --- RED --- GREEN --- BLUE --
+                                             min max - min max - min max     */
+        if (DEADBAND_COUNTER > 0)      FADE(  0, 220,  20,  75, 100,   0, true);
+        else if (DEADBAND_COUNTER < 0) FADE( 50, 220,   0,  75,  50,   0, true);
+        else                           FADE( 25, 220,  10,  75,   0,   0, true);
       } else
         // But if we charging, fade battery voltage by dynamic colors
         if (digitalRead(PIN_CHARGE_CONTROL) == HIGH)
