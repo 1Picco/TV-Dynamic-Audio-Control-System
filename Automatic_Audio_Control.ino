@@ -167,7 +167,6 @@ void AUDIO_CONTROL_MODE() {
         {
           state = LoudConfirmed;  // It's confirmed, loud music
           info.println(F("Lower the volume."));
-          led.fadeIn(250, 10, 0, 15, 80);
         } else {
           state = WaitForLoud;  // Wait for another one
         }
@@ -183,7 +182,7 @@ void AUDIO_CONTROL_MODE() {
         LoudConfirmedDelay.Reset();
       } else if (LoudConfirmedDelay.Reached(PREVIOUS_REACTION_DELAY))
       {
-        if (CycleCounter.Reached(155))
+        if (CycleCounter.Reached(130))
         {
           state = WaitForSilence;  // Go to the state of waiting for a quiet part (dialog)
           if (VOLUME_REDUCTION_COUNTER > 0) {
@@ -211,7 +210,7 @@ void AUDIO_CONTROL_MODE() {
         QuietCounter.Reset();           // Reset the counter of quiet waves
         state = WaitForSilence;         // Return to waiting for silence
       } else if (SilenceFoundDelay.Reached(PREVIOUS_REACTION_DELAY)) {
-        if (CycleCounter.Reached(6)) {    // One silent wave, then...
+        if (CycleCounter.Reached(7)) {    // One silent wave, then...
           if (QuietCounter.Reached(25)) { // Increment counter of quiet waves
 
             state = SilenceConfirmed;   // No more music, silence confirmed
@@ -318,10 +317,6 @@ void PRINT_SERIAL_DATA(uint16_t audio) {
     Serial.print(AUDIO_BASELINE_HIGH);
 
     Serial.print(F(" Baseline LOW:"));
-    Serial.print(AUDIO_BASELINE_LOW);
-
-    // Display the current deadband used for audio level evaluation.
-    Serial.print(F(" DEADBAND:"));
-    Serial.println(DEADBAND);
+    Serial.println(AUDIO_BASELINE_LOW);
   }
 }
