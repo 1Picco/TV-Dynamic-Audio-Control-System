@@ -91,11 +91,7 @@ It determines how quickly the system reacts after detecting loud audio and how q
 
 ### Deadband control
 
-A second 10 kΩ potentiometer controls the **deadband**.
-
-The deadband determines the sensitivity baseline used for deciding whether the detected audio represents silence or significant audio activity.
-
-The deadband can also be adjusted from the remote control. The RGB LED provides visual feedback for positive and negative deadband adjustments.
+The deadband can be adjusted from the remote control. The RGB LED provides visual feedback for positive and negative deadband adjustments.
 
 ---
 
