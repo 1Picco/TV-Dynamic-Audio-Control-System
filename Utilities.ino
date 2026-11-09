@@ -18,7 +18,7 @@ bool SIGNAL_FILTER() {
 
   // Reject unsupported NEC signals, unknown protocols, or oversized values.
   if (results.decode_type == NEC || results.decode_type == UNKNOWN || results.value > 0xFFFFF) {
-    led.flash(40, 0, 200, 35, 80, 2); // Purple error blink
+    led.flash(30, 0, 200, 35, 80, 2);  // Purple error blink
     MY_TONE(3800, 10, 2);
     irrecv.resume();
     return false;
@@ -53,7 +53,7 @@ bool SIGNAL_FILTER() {
   // Reset feedback timers because a valid IR command was received.
   RESET_FEEDBACK_TIMERS();
 
-  return true; // Valid signal ready
+  return true;  // Valid signal ready
 }
 
 // ============================================================================
@@ -85,9 +85,7 @@ const byte IR_TO_SAMSUNG_SIZE = sizeof(SAMSUNG_CMD);
 // ============================================================================
 // Send a Samsung IR command to the TV.
 // The command can be supplied directly or read from the SAMSUNG_CMD lookup table.
-void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
-  //void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
-  // uint8_t command = cmd;
+void sendSamsungCode(uint8_t cmd, bool use_lookup) {
 
   // When lookup mode is used, cmd is the index of the required Samsung command.
   if (use_lookup) {
@@ -103,7 +101,6 @@ void sendSamsungCode(uint8_t cmd, bool use_lookup = false) {
 
   // Send one Samsung command to the TV.
   // 0x707 is the Samsung address used by this TV.
-  //delay(MS(1));
   IrSender.sendSamsung(0x707, cmd, 1);
 
   // Allow the transmission to finish before restarting IR reception.
@@ -146,14 +143,15 @@ void INSPECT_IR_CODE() {
 void RESET_FEEDBACK_TIMERS() {
   unsigned long now = millis();
 
-  FEEDBACK_OFF_START_TIME = now;            // Reset IR feedback timer
-  FEEDBACK_OFF_ACTIVE = true;               // Enable IR feedback timer
+  FEEDBACK_OFF_START_TIME = now;  // Reset IR feedback timer
+  FEEDBACK_OFF_ACTIVE = true;     // Enable IR feedback timer
 
-  RGB_FEEDBACK_START_TIME = now;            // Reset LED feedback timer
-  FEEDBACK_LED_ACTIVE = true;               // Enable LED feedback timer
+  RGB_FEEDBACK_START_TIME = now;  // Reset LED feedback timer
+  FEEDBACK_LED_ACTIVE = true;     // Enable LED feedback timer
 
-  GO_TO_SLEEP_START_TIME = now;             // Reset sleep timer
-  ARDUINO_WAITING_TO_SLEEP = true;          // Enable sleep timer
+  GO_TO_SLEEP_START_TIME = now;      // Reset sleep timer
+  ARDUINO_WAITING_TO_SLEEP = true;   // Enable sleep timer
+  TV_AUTO_POWER_OFF_ACTIVE = false;  // Resets delayed TV Power Off countdown flag
 }
 
 // ============================================================================
@@ -191,11 +189,11 @@ void MY_TONE(uint16_t frequency, uint8_t duration, uint8_t beepCount) {
 void MY_TONE(uint16_t frequency, int16_t frequencyStep,
              uint8_t duration, uint8_t beepCount) {
 
-  if (!MY_TONE_ENABLED) return;             // Exit if tone is disabled
-  if (beepCount == 0) return;               // Nothing to play
-  if (frequency == 0) return;               // Invalid starting frequency
+  if (!MY_TONE_ENABLED) return;  // Exit if tone is disabled
+  if (beepCount == 0) return;    // Nothing to play
+  if (frequency == 0) return;    // Invalid starting frequency
 
-  const uint8_t pauseBetweenBeeps = 85;     // Pause between beeps in ms
+  const uint8_t pauseBetweenBeeps = 85;  // Pause between beeps in ms
 
   pinMode(11, OUTPUT);
 
@@ -225,7 +223,7 @@ void MY_TONE(uint16_t frequency, int16_t frequencyStep,
     currentFrequency += frequencyStep;
   }
 
-  pinMode(11, INPUT);                        // Turn off the pin
+  pinMode(11, INPUT);  // Turn off the pin
 }
 
 // ============================================================================
@@ -235,14 +233,14 @@ void MY_TONE_REPEAT(uint16_t frequency, uint8_t duration, uint8_t beepCount, uns
   static unsigned long lastTrigger = 0;
   static bool played = false;
 
-  if (interval == 0) {          // One-shot mode
+  if (interval == 0) {  // One-shot mode
     if (!played) {
       played = true;
       MY_TONE(frequency, duration, beepCount);
     }
     return;
   }
-  played = false;               // Allow one-shot again after leaving one-shot mode
+  played = false;  // Allow one-shot again after leaving one-shot mode
 
   if (millis() - lastTrigger >= interval) {
     lastTrigger = millis();
@@ -279,22 +277,43 @@ uint16_t analogReadFiltered() {
 // has been made through the remote control.
 
 AsyncDelay READ_ANALOG_DATADelay;  // Timer for reading analog values
+/*
+void READ_ANALOG_DATA(bool READ_NOW) {
 
-void READ_ANALOG_DATA(bool READ_NOW = false) {
-
-  // Read the potentiometers when the interval has elapsed,
+  // Read the reaction potentiometer when the interval has elapsed,
   // or immediately when a forced reading is requested.
   if (READ_NOW || READ_ANALOG_DATADelay.Reached(ANALOG_READ_DELAY_MS)) {
 
-    int16_t rawDEADBAND = analogRead(PIN_DEADBAND);
-    int16_t rawREACT    = analogRead(PIN_REACT);
+    // The first conversion after switching ADC channels can be skewed by the
+    // previous channel (A0 audio), because the pot is a high-impedance source.
+    // Discard it, then average 4 readings to reduce noise.
+    analogRead(PIN_REACT);
+    uint16_t sum = 0;
+    for (byte i = 0; i < 4; i++) sum += analogRead(PIN_REACT);
+    int16_t rawREACT = sum / 4;
 
-    // Update DEADBAND from the potentiometer only when it has not
-    // been manually adjusted through the remote control.
-    if (DEADBAND_COUNTER == 0) {
-      DEADBAND = map(rawDEADBAND, 0, 1023, 550, 20);
-      DEADBAND = constrain(DEADBAND, 20, 550);
+    // Convert the Reaction potentiometer position to the reaction delay.
+    uint8_t newREACTION_DELAY = map(rawREACT, 0, 1023, 32, 3);
+
+    // Give audible feedback when the reaction setting changes.
+    // PREVIOUS_REACTION_DELAY == -1 prevents a tone on the first reading.
+    if (newREACTION_DELAY != PREVIOUS_REACTION_DELAY && PREVIOUS_REACTION_DELAY != -1) {
+      MY_TONE(4200, 50, 1);
     }
+
+    // Store the current reaction setting for comparison with the next reading.
+    PREVIOUS_REACTION_DELAY = newREACTION_DELAY;
+  }
+}
+
+*/
+void READ_ANALOG_DATA(bool READ_NOW) {
+
+  // Read the reaction potentiometer when the interval has elapsed,
+  // or immediately when a forced reading is requested.
+  if (READ_NOW || READ_ANALOG_DATADelay.Reached(ANALOG_READ_DELAY_MS)) {
+
+    int16_t rawREACT = analogRead(PIN_REACT);
 
     // Convert the Reaction potentiometer position to the reaction delay.
     uint8_t newREACTION_DELAY = map(rawREACT, 0, 1023, 32, 3);
@@ -356,77 +375,44 @@ void FUNCTION_MODE_TOGGLE() {
   }
 }
 
-// ============================================================================
-// EEPROM Wear Leveling Functions - Reduce EEPROM wear
-// ============================================================================
-// Each slot stores a compact 1-byte record:
-// bit 0    -> boolean value
-// bits 1-7 -> sequence counter (8-bit wrap-around counter used for newest-value selection)
+// Find the newest slot of a setting. Returns -1 if all slots are empty.
+// Slots are written in order, so the newest one is the slot whose successor
+// is empty or does not continue the counter sequence.
+int8_t eepromFindNewest(uint8_t baseAddress) {
+  for (uint8_t i = 0; i < EEPROM_CYCLE_SIZE; i++) {
+    byte current = EEPROM.read(baseAddress + i);
+    if (current == 0xFF) continue;  // empty slot
 
-// Write with wear leveling - spreads writes across multiple addresses
-void eepromWearLevelWrite(int8_t baseAddress, bool value) {
-  byte valueToWrite = value ? 1 : 0;
+    byte next = EEPROM.read(baseAddress + ((i + 1) % EEPROM_CYCLE_SIZE));
+    if (next == 0xFF) return i;  // next slot empty
 
-  // Check current state of all addresses
-  bool allMatch = true;
-  bool allUninitialized = true;
-
-  for (byte i = 0; i < EEPROM_CYCLE_SIZE; i++) {
-    byte currentValue = EEPROM.read(baseAddress + i);
-    if (currentValue != 0xFF) {
-      allUninitialized = false;
-    }
-    if (currentValue != valueToWrite) {
-      allMatch = false;
-    }
+    byte expected = ((current >> 1) + 1) & 0x3F;  // counter + 1 (6 bits)
+    if ((next >> 1) != expected) return i;        // sequence breaks here
   }
-
-  // If all addresses already have the correct value, no write needed
-  if (allMatch && !allUninitialized) {
-    return;
-  }
-
-  // Write to all addresses for consistency and redundancy
-  // This ensures all addresses are synchronized
-  for (byte i = 0; i < EEPROM_CYCLE_SIZE; i++) {
-    int address = baseAddress + i;
-    byte currentValue = EEPROM.read(address);
-    // Only write if value is different (EEPROM.update does this, but being explicit)
-    if (currentValue != valueToWrite) {
-      EEPROM.update(address, valueToWrite);
-    }
-  }
+  return -1;
 }
 
-// Read with wear leveling - checks all addresses and returns majority value
-bool eepromWearLevelRead(int8_t baseAddress) {
-  int8_t trueCount = 0;
-  int8_t falseCount = 0;
-  int8_t initializedCount = 0;
+void eepromWearLevelWrite(uint8_t baseAddress, bool value) {
+  byte bit = value ? 1 : 0;
+  int8_t newest = eepromFindNewest(baseAddress);
 
-  // Check all addresses in the wear leveling cycle
-  for (byte i = 0; i < EEPROM_CYCLE_SIZE; i++) {
-    int address = baseAddress + i;
-    byte value = EEPROM.read(address);
+  // Value unchanged: no write needed.
+  if (newest >= 0 && (EEPROM.read(baseAddress + newest) & 1) == bit) return;
 
-    // Only count initialized values (0 or 1), ignore 0xFF (uninitialized)
-    if (value == 1) {
-      trueCount++;
-      initializedCount++;
-    } else if (value == 0) {
-      falseCount++;
-      initializedCount++;
-    }
-    // 0xFF (uninitialized) is ignored
+  uint8_t slot = 0;
+  uint8_t counter = 0;
+  if (newest >= 0) {
+    slot = (newest + 1) % EEPROM_CYCLE_SIZE;
+    counter = ((EEPROM.read(baseAddress + newest) >> 1) + 1) & 0x3F;
   }
 
-  // If no addresses are initialized, return default false
-  if (initializedCount == 0) {
-    return false;
-  }
+  EEPROM.update(baseAddress + slot, (byte)((counter << 1) | bit));
+}
 
-  // Return majority value among initialized addresses
-  return (trueCount > falseCount);
+bool eepromWearLevelRead(uint8_t baseAddress) {
+  int8_t newest = eepromFindNewest(baseAddress);
+  if (newest < 0) return false;  // nothing stored yet
+  return (EEPROM.read(baseAddress + newest) & 1) == 1;
 }
 
 
