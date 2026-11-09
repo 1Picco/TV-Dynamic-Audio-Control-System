@@ -1,21 +1,67 @@
 // ============================================================================
 // BATTERY MANAGEMENT FUNCTIONS
 // ============================================================================
-// Measure battery voltage and return the result in millivolts (mV).
-// Reads the ADC voltage at the divider output and applies the voltage
-// divider ratio to calculate the actual battery voltage, and
-// if needed add the calibration correction.
+
+// VCC MEASUREMENT USING THE INTERNAL 1.1 V BANDGAP REFERENCE
+// ============================================================================
+// The ADC input is switched to the internal 1.1 V bandgap while AVcc is used
+// as the ADC reference. Because ADC = Vbg / Vcc * 1023, the actual supply
+// voltage is: Vcc(mV) = Vbg(mV) * 1023 / ADC.
+//
+// BANDGAP_CONSTANT = Vbg(mV) * 1023.
+// Nominal: 1100 * 1023 = 1125300. The real bandgap of each chip can be
+// anywhere between ~1.0 V and ~1.2 V. To calibrate, measure your real VCC
+// with a multimeter and use: BANDGAP_CONSTANT = measured_VCC_mV * ADC_reading
+// (the ADC reading of the bandgap, see the debug print below).
+
+const uint32_t BANDGAP_CONSTANT = 1125300UL;
+
+uint16_t GET_VCC_MV() {
+
+  // AVcc as reference (REFS0), input = internal 1.1 V bandgap (MUX3..MUX1).
+  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+
+  // The bandgap needs a short time to stabilize after being selected.
+  delay(2);
+
+  // First conversion after changing the mux is discarded.
+  ADCSRA |= _BV(ADSC);
+  while (bit_is_set(ADCSRA, ADSC))
+    ;
+
+  // Real conversion.
+  ADCSRA |= _BV(ADSC);
+  while (bit_is_set(ADCSRA, ADSC))
+    ;
+  uint16_t adc = ADC;
+
+  // Protect against division by zero (should never happen).
+  if (adc == 0) return 3360;
+
+  return (uint16_t)(BANDGAP_CONSTANT / adc);
+}
+
+// ============================================================================
+// VERSION 2 - same as GET_BATTERY_VOLTAGE(), but the ADC reference voltage
+// is measured instead of using the fixed 3360 mV constant.
+// ============================================================================
 
 uint16_t GET_BATTERY_VOLTAGE() {
 
-  // ADC reading (0-1023) -> mV at the ADC pin A3 (divider output).
-  // 3360 = ADC reference in mV (VCC pin voltage 3.360V)
-  uint32_t raw_mV = ((uint32_t)analogRead(PIN_BATTERY_VOLTAGE) * 3360UL) / 1023UL;
+  // Measure the real VCC right before reading the battery divider,
+  // so both readings happen under the same load condition.
+  uint32_t vcc_mV = GET_VCC_MV();
 
-  // Multiply raw_mV by 1.326 (voltage divider ratio (3.26K + 10K) / 10K = 1.326)
-  // Then add the calibration correction.
+  // Discard the first A3 reading after the mux was on the bandgap input
+  // (high source impedance divider needs the sample capacitor to settle).
+  analogRead(PIN_BATTERY_VOLTAGE);
+
+  // ADC reading (0-1023) -> mV at pin A3, using the measured VCC.
+  uint32_t raw_mV = ((uint32_t)analogRead(PIN_BATTERY_VOLTAGE) * vcc_mV) / 1023UL;
+
+  // Same divider ratio (3.26K + 10K) / 10K = 1.326 and same offset as V1.
   uint16_t milivolt = (uint32_t)((raw_mV * 13260UL) / 10000UL) + BATTERY_VOLTAGE_OFFSET;
-  return (uint16_t)milivolt;
+  return milivolt;
 }
 
 // ============================================================================
@@ -33,27 +79,24 @@ uint16_t READ_BATTERY_VOLTAGE() {
 
   // Start a new battery measurement when the required interval has elapsed.
   // The first measurement is performed immediately.
-  if (!LOAD_TEST_ACTIVE &&
-      (FIRST_VOLTAGE_READING_TAKEN ||
-       (CURRENT_MILLIS - PREVIOUS_VOLTAGE_READING >= TIME_TO_READ_BATTERY_VOLTAGE))) {
+  if (!LOAD_TEST_ACTIVE && (FIRST_VOLTAGE_READING_TAKEN || (CURRENT_MILLIS - PREVIOUS_VOLTAGE_READING >= TIME_TO_READ_BATTERY_VOLTAGE))) {
 
-    LOAD_TEST_ACTIVE           = true;
+    LOAD_TEST_ACTIVE = true;
     BATTERY_MEASUREMENT_ACTIVE = true;
-    VOLTAGE_CAPTURED           = false;
+    VOLTAGE_CAPTURED = false;
 
-    LOAD_TEST_TIMER            = CURRENT_MILLIS;
+    LOAD_TEST_TIMER = CURRENT_MILLIS;
 
     // Apply the 100 mA battery load and allow the voltage to settle.
     digitalWrite(PIN_BATTERY_LOAD, HIGH);
     // MY_TONE(3000, 15, 1);
-    // led.fadeIn(220, 220, 220, 15, 150);
+    //led.fadeIn(250, 250, 220, 15, 100);
   }
 
   // Read the battery voltage after 2.95 seconds under load.
   // ===========================================================================
 
-  if (LOAD_TEST_ACTIVE && !VOLTAGE_CAPTURED &&
-      (CURRENT_MILLIS - LOAD_TEST_TIMER >= 2950UL)) {
+  if (LOAD_TEST_ACTIVE && !VOLTAGE_CAPTURED && (CURRENT_MILLIS - LOAD_TEST_TIMER >= 2950UL)) {
 
     VOLTAGE_CAPTURED = true;
 
@@ -62,10 +105,10 @@ uint16_t READ_BATTERY_VOLTAGE() {
 
     if (!CHARGING_ACTIVE) {
       Serial.print(F("Battery state: "));
-      Serial.print(VOLTAGE / 1000);                          // whole number
+      Serial.print(VOLTAGE / 1000);  // whole number
       Serial.print('.');
-      Serial.print((VOLTAGE % 1000) / 100);                  // tenths
-      Serial.print((VOLTAGE % 100) / 10);                    // hundredths
+      Serial.print((VOLTAGE % 1000) / 100);  // tenths
+      Serial.print((VOLTAGE % 100) / 10);    // hundredths
       Serial.println(F("V"));
     }
   }
@@ -75,15 +118,15 @@ uint16_t READ_BATTERY_VOLTAGE() {
   // capture, then it is removed.
   // ===========================================================================
 
-  if (LOAD_TEST_ACTIVE &&
-      (CURRENT_MILLIS - LOAD_TEST_TIMER >= 3000UL)) {
+  if (LOAD_TEST_ACTIVE && (CURRENT_MILLIS - LOAD_TEST_TIMER >= 3000UL)) {
 
     // Remove the battery load.
     digitalWrite(PIN_BATTERY_LOAD, LOW);
-    // led.fadeOut(220, 220, 220, 15, 150);
+    // MY_TONE(3000, 10, 1);
+    // led.fadeOut(250, 250, 220, 15, 100);
 
-    LOAD_TEST_ACTIVE            = false;
-    BATTERY_MEASUREMENT_ACTIVE  = false;
+    LOAD_TEST_ACTIVE = false;
+    BATTERY_MEASUREMENT_ACTIVE = false;
 
     // After the initial reading, update the LED feedback using the
     // newly measured battery voltage status.
@@ -126,7 +169,7 @@ void BATTERY_CHARGE_CHECK() {
       digitalWrite(PIN_CHARGE_CONTROL, HIGH);
       eepromWearLevelWrite(EEPROM_CHARGING_ACTIVE_BASE, true);
       info.println(F("Low voltage! Charging started."));
-      led.flash(0, 255, 0, 30, 0, 0);
+      //led.flash(0, 255, 0, 30, 0, 1);
 
       LOW_VOLTAGE_START_CHARGING = true;
       CHARGING_CYCLE_COMPLETE = false;
@@ -137,8 +180,7 @@ void BATTERY_CHARGE_CHECK() {
   // Periodically pause charging so the battery voltage can be checked.
   // The charger is disabled before measuring to avoid measuring the
   // charging voltage instead of the actual battery voltage.
-  if (CURRENT_MILLIS - LAST_TIME_VOLTAGE_READING >= TIME_TO_CHECK_BATTERY_CHARGE_STATE &&
-      !CHARGING_PAUSED && LOW_VOLTAGE_START_CHARGING) {
+  if (CURRENT_MILLIS - LAST_TIME_VOLTAGE_READING >= TIME_TO_CHECK_BATTERY_CHARGE_STATE && !CHARGING_PAUSED && LOW_VOLTAGE_START_CHARGING) {
 
     digitalWrite(PIN_CHARGE_CONTROL, LOW);
 
@@ -146,7 +188,7 @@ void BATTERY_CHARGE_CHECK() {
 
     // White indicates that charging is temporarily paused
     // for a battery voltage measurement.
-    led.fadeIn(220, 220, 200, 15, 150);
+    //led.fadeIn(220, 220, 200, 15, 150);
 
     info.println(F("Charging PAUSED to measure battery voltage."));
 
@@ -156,10 +198,12 @@ void BATTERY_CHARGE_CHECK() {
 
   // After charging has been paused long enough for the battery voltage
   // to stabilize, measure the battery voltage again.
-  if (CHARGING_PAUSED &&
-      CURRENT_MILLIS - PAUSE_CHARGING_TO_READ_VOLTAGE >= WAITE_FOR_VOLTAGE_STABILIZATION) {
+  if (CHARGING_PAUSED && CURRENT_MILLIS - PAUSE_CHARGING_TO_READ_VOLTAGE >= WAITE_FOR_VOLTAGE_STABILIZATION) {
 
     VOLTAGE_DURING_PAUSED_CHARGING = GET_BATTERY_VOLTAGE();
+
+    // White fade out indicates that battery voltage measurement was done.
+    //led.fadeOut(220, 220, 200, 15, 150);
 
     info.print(F("Stabilized battery voltage: "));
     info.print(VOLTAGE_DURING_PAUSED_CHARGING / 1000);
@@ -183,13 +227,11 @@ void BATTERY_CHARGE_CHECK() {
       LOW_VOLTAGE_START_CHARGING = false;
 
       // If the battery has not reached the charging limit, resume charging.
-    } else if (VOLTAGE_DURING_PAUSED_CHARGING < STOP_CHARGING_VOLTAGE &&
-               LOW_VOLTAGE_START_CHARGING) {
+    } else if (VOLTAGE_DURING_PAUSED_CHARGING < STOP_CHARGING_VOLTAGE && LOW_VOLTAGE_START_CHARGING) {
 
       digitalWrite(PIN_CHARGE_CONTROL, HIGH);
       info.println(F("Resume charging."));
 
-      led.fadeOut(220, 220, 200, 15, 150);
       MY_TONE(4000, 20, 2);
     }
 
@@ -197,7 +239,6 @@ void BATTERY_CHARGE_CHECK() {
     // periodic charging-state check.
     CHARGING_PAUSED = false;
     LAST_TIME_VOLTAGE_READING = CURRENT_MILLIS;
-    led.flash(0, 255, 0, 30, 50, 3);
   }
 }
 // ============================================================================
@@ -219,14 +260,9 @@ void VERIFY_BATTERY_VOLTAGE() {
   // Convert the voltage from mV to hundredths of a volt.
   // Example: 3450 mV -> 345 -> 3.45 V
   const byte wholeNumber = VOLTAGE / 1000;
-  const byte tenths      = (VOLTAGE / 100) % 10;
-  const byte hundredths  = (VOLTAGE / 10) % 10;
-  /*
-    uint16_t   millivolt    = VOLTAGE   / 10;
-    const byte wholeNumber = millivolt  / 100;
-    const byte tenths      = (millivolt / 10) % 10;
-    const byte hundredths  = millivolt  % 10;
-  */
+  const byte tenths = (VOLTAGE / 100) % 10;
+  const byte hundredths = (VOLTAGE / 10) % 10;
+
   // Display the three voltage digits using the corresponding LED colors.
   BLINK_BATTERY_VOLTAGE(wholeNumber, tenths, hundredths);
 }
@@ -245,28 +281,26 @@ void BLINK_DIGIT(byte count, byte red, byte green, byte blue, uint16_t pauseAfte
   }
 
   // Timing of one complete blink cycle.
-  static const uint16_t fadeIn  = 200;
-  static const uint16_t onTime  = 100;
+  static const uint16_t fadeIn = 200;
+  static const uint16_t onTime = 100;
   static const uint16_t fadeOut = 350;
   static const uint16_t offTime = 200;
 
-  // Calculate the total time required for all blinks.
   unsigned long singleCycleDuration = (unsigned long)fadeIn + onTime + fadeOut + offTime;
-  unsigned long totalAnimationTime  = singleCycleDuration * count;
+  unsigned long totalAnimationTime = singleCycleDuration * count;
+
+  FEEDBACK_PATTERN_RESTART = true;  // <-- the one line to add here
 
   unsigned long startTime = millis();
 
-  // Repeat the blink pattern until the requested number of blinks is complete.
   while (millis() - startTime < totalAnimationTime) {
     FEEDBACK_PATTERN(0, red, 0, green, 0, blue, count,
                      fadeIn, onTime, fadeOut, offTime, false, 0);
     delay(5);
   }
 
-  // Ensure the LED is off before continuing to the next digit.
   led.setColor(0, 0, 0);
 
-  // Pause between voltage digits when requested.
   if (pauseAfter > 0) {
     delay(pauseAfter);
   }
@@ -285,12 +319,14 @@ void BLINK_DIGIT(byte count, byte red, byte green, byte blue, uint16_t pauseAfte
 void BLINK_BATTERY_VOLTAGE(byte wholeNumber, byte tenths, byte hundredths) {
 
   // Start indication: white LED sequence for 2 seconds.
-  unsigned long startSeqDuration = 2000;
+  unsigned long startSeqDuration = SECONDS(2);
   unsigned long startSeqBegin = millis();
+
+  FEEDBACK_PATTERN_RESTART = true;
 
   while (millis() - startSeqBegin < startSeqDuration) {
     FEEDBACK_PATTERN(0, 220, 0, 220, 0, 200,
-                     1, 200, 400, 200, 1500, false, 0);
+                     1, 150, 300, 250, 0, false, 0);
   }
 
   // Whole volts: green.
@@ -305,8 +341,6 @@ void BLINK_BATTERY_VOLTAGE(byte wholeNumber, byte tenths, byte hundredths) {
   // End indication: two short white flashes.
   led.flash(220, 220, 200, 30, 50, 2);
 
-  // Turn the LED off and reset the feedback timers after the voltage
-  // display sequence has completed.
-  led.setColor(0, 0, 0);
+  // Reset the feedback timers after the voltage display sequence has completed.
   RESET_FEEDBACK_TIMERS();
 }
