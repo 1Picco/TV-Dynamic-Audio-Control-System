@@ -23,9 +23,10 @@ void REMOTE_CONTROL_MODE() {
       MUTED = false;                // Deactivates TV MUTED function if was enabled.
       info.println(F("Volume -"));
 
+      if (LOAD_TEST_ACTIVE) return;
       if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
         // If single button pess flash LED RED, else if button is hold pressed set LED RED.
-        IR_CODE_REPEATING ? led.setColor(220, 20, 0) : led.flash(220, 20, 0, 30, 0, 0);
+        IR_CODE_REPEATING ? led.setColor(220, 20, 0) : led.flash(220, 20, 0, 35, 0, 1);
       }
       break;
 
@@ -37,9 +38,10 @@ void REMOTE_CONTROL_MODE() {
       MUTED = false;                //Deactivates TV MUTED function if was enabled.
       info.println(F("Volume + :"));
 
+      if (LOAD_TEST_ACTIVE) return;
       if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
         // If single button pess flash LED GREEN, else if button is hold pressed set LED GREEN.
-        IR_CODE_REPEATING ? led.setColor(40, 220, 0) : led.flash(40, 220, 0, 30, 0, 0);
+        IR_CODE_REPEATING ? led.setColor(40, 220, 0) : led.flash(40, 220, 0, 35, 0, 1);
       }
       break;
 
@@ -52,7 +54,6 @@ void REMOTE_CONTROL_MODE() {
         DEADBAND_COUNTER--;
         AUDIO_BASELINE_HIGH = max(0, 660 + (DEADBAND_COUNTER * 40));
         AUDIO_BASELINE_LOW  = min(1023, 340 - (DEADBAND_COUNTER * 40));
-        DEADBAND = 136 + (DEADBAND_COUNTER * 40);
       }
 
       // At the minimum setting, give a different tone and white feedback
@@ -61,7 +62,7 @@ void REMOTE_CONTROL_MODE() {
         MY_TONE(3750, -250, 15, 2);
         led.flash(220, 220, 200, 50, 50, 2);
       } else {
-        MY_TONE(3000, 40, 1);
+        MY_TONE(3000, 30, 1);
         led.flash(100, 0, 100, 50, 20, 1);
       }
       break;
@@ -75,7 +76,6 @@ void REMOTE_CONTROL_MODE() {
         DEADBAND_COUNTER++;
         AUDIO_BASELINE_HIGH = 660 + (DEADBAND_COUNTER * 40);
         AUDIO_BASELINE_LOW  = max(0, 340 - (DEADBAND_COUNTER * 40));
-        DEADBAND = 136 + (DEADBAND_COUNTER * 40);
       }
 
       // At the maximum setting, give a different tone and white feedback
@@ -84,7 +84,7 @@ void REMOTE_CONTROL_MODE() {
         MY_TONE(3250, +250, 15, 2);
         led.flash(220, 220, 200, 50, 50, 2);
       } else {
-        MY_TONE(3500, 40, 1);
+        MY_TONE(3500, 30, 1);
         led.flash(0, 75, 220, 50, 20, 1);
       }
       break;
@@ -189,6 +189,15 @@ void REMOTE_CONTROL_MODE() {
       led.flash(SELECT_JELLYFIN ? 0 : 220, SELECT_JELLYFIN ? 100 : 220, SELECT_JELLYFIN ? 100 : 200, 50, 85, 2);
       break;
 
+    // Delayed TV Power Off
+    // Start a 30-minute countdown. Any subsequent remote command
+    // resets the countdown through RESET_FEEDBACK_TIMERS().
+    case 0xD2:
+      TV_AUTO_POWER_OFF_ACTIVE = true;
+      info.println(F("TV power off scheduled in 30 minutes."));
+      led.flash(220, 100, 0, 100, 100, 5);
+      break;
+
     // Sleep
     // Enter sleep mode and allow the IR system to wake the controller.
     case 0x37:
@@ -269,5 +278,5 @@ void REMOTE_CONTROL_MODE() {
 
   // Short delay after every processed IR command.
   // Repeating commands use a shorter delay so held buttons remain responsive.
-  delay(IR_CODE_REPEATING ? 1 : 100);
+  delay(IR_CODE_REPEATING ? 1 : 200);
 }
