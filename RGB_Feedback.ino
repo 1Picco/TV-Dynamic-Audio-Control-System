@@ -10,8 +10,7 @@ void FEEDBACK_MODE(byte mode) {
   // Do not show battery feedback while charging, while charging is paused,
   // when remote control mode is inactive, when volume control is inactive,
   // or while the TV volume is being automatically restored.
-  if (LOAD_TEST_ACTIVE || CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE ||
-      !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
+  if (LOAD_TEST_ACTIVE || CHARGING_ACTIVE || CHARGING_PAUSED || !REMOTE_CONTROL_MODE_ACTIVE || !VOLUME_CONTROL_ACTIVE || VOLUME_REDUCTION_COUNTER > 0) return;
 
   // Battery status feedback is only updated when the deadband counter
   // has expired, preventing unnecessary repeated LED updates.
@@ -24,12 +23,12 @@ void FEEDBACK_MODE(byte mode) {
 
   switch (mode) {
 
-    // ------------------------------------------------------------------------
-    // BLINK
-    // Used for IR feedback.
-    // Repeating IR commands show a steady battery-status color.
-    // Non-repeating valid IR commands produce a short color flash.
-    // ------------------------------------------------------------------------
+      // ------------------------------------------------------------------------
+      // BLINK
+      // Used for IR feedback.
+      // Repeating IR commands show a steady battery-status color.
+      // Non-repeating valid IR commands produce a short color flash.
+      // ------------------------------------------------------------------------
 
     case BLINK:
       if (IR_CODE_REPEATING) {
@@ -45,41 +44,45 @@ void FEEDBACK_MODE(byte mode) {
 
         // Valid non-repeating IR command: briefly flash the
         // color corresponding to the current battery voltage.
-        if (currentVoltage_mV >= 3560) led.flash(10, 220, 10, 30, 0, 0);
-        else if (currentVoltage_mV >= 3500) led.flash(220, 40, 0, 30, 0, 0);
-        else led.flash(220, 0, 0, 30, 0, 0);
+        if (currentVoltage_mV >= 3560) led.flash(10, 220, 10, 35, 0, 1);
+        else if (currentVoltage_mV >= 3500) led.flash(220, 40, 0, 35, 0, 1);
+        else led.flash(220, 0, 0, 35, 0, 1);
       }
       break;
 
-    // ------------------------------------------------------------------------
-    // BATTERY_VOLTAGE_STATUS
-    // Display the current battery status using fade-in to color.
-    // ------------------------------------------------------------------------
+      // ------------------------------------------------------------------------
+      // BATTERY_VOLTAGE_STATUS
+      // Display the current battery status using fade-in to color.
+      // ------------------------------------------------------------------------
 
     case BATTERY_VOLTAGE_STATUS:
 
-      // Battery voltage >= 3.56 V: green
-      // Battery voltage >= 3.50 V: yellow
-      // Battery voltage <  3.50 V: red
-      if (currentVoltage_mV >= 3560) led.fadeIn(0, 50, 5, 35, 165);
-      else if (currentVoltage_mV >= 3500) led.fadeIn(65, 40, 0, 35, 165);
-      else led.fadeIn(50, 0, 0, 35, 165);
+      // If AUTO power off timer active : white
+      // Battery voltage >=       3.56 V: green
+      // Battery voltage >=       3.50 V: yellow
+      // Battery voltage <        3.50 V: red
+      if (TV_AUTO_POWER_OFF_ACTIVE) led.fadeIn(20, 20, 15, 15, 165);
+      else if (currentVoltage_mV >= 3560) led.fadeIn(0, 50, 5, 15, 165);
+      else if (currentVoltage_mV >= 3500) led.fadeIn(65, 40, 0, 15, 165);
+      else led.fadeIn(50, 0, 0, 15, 165);
       break;
 
-    // ------------------------------------------------------------------------
-    // RGB_LED_OFF
-    // Fade out the current battery-status color.
-    // The color used for the fade-out corresponds to the current voltage.
-    // ------------------------------------------------------------------------
+      // ------------------------------------------------------------------------
+      // RGB_LED_OFF
+      // Fade out the current battery-status color.
+      // The color used for the fade-out corresponds to the current voltage.
+      // ------------------------------------------------------------------------
 
     case RGB_LED_OFF:
 
-      // Battery voltage >= 3.56 V: green
-      // Battery voltage >= 3.50 V: yellow
-      // Battery voltage <  3.50 V: red
-      if (currentVoltage_mV >= 3560) led.fadeOut(0, 50, 5, 30, 1000);
-      else if (currentVoltage_mV >= 3500) led.fadeOut(65, 40, 0, 30, 1000);
-      else led.fadeOut(50, 0, 0, 30, 1000);
+      // If AUTO power off timer active : white
+      // Battery voltage >=       3.56 V: green
+      // Battery voltage >=       3.50 V: yellow
+      // Battery voltage <        3.50 V: red
+      if (TV_AUTO_POWER_OFF_ACTIVE) led.fadeOut(20, 20, 15, 15, 1000);
+      else if (currentVoltage_mV >= 3560) led.fadeOut(0, 50, 5, 15, 1000);
+      else if (currentVoltage_mV >= 3500) led.fadeOut(65, 40, 0, 15, 1000);
+      else led.fadeOut(50, 0, 0, 15, 1000);
       break;
   }
 }
@@ -121,18 +124,18 @@ void FEEDBACK_MODE(byte mode) {
 // Uses >> 8 for the final /256 scaling to keep the calculation efficient.
 static inline byte lerp8(byte start, byte end, uint16_t elapsed, uint16_t duration) {
   if (duration == 0) return end;
-  uint16_t progress = ((uint32_t)elapsed << 8) / duration; // 0..256 scale
+  uint16_t progress = ((uint32_t)elapsed << 8) / duration;  // 0..256 scale
   if (progress > 256) progress = 256;
   int16_t delta = (int16_t)end - (int16_t)start;
   return (byte)(start + ((delta * (int16_t)progress) >> 8));
 }
 
-void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
+void FEEDBACK_PATTERN(byte minRed, byte maxRed,
                       byte minGreen, byte maxGreen,
-                      byte minBlue,   byte maxBlue,
+                      byte minBlue, byte maxBlue,
                       byte blinkCount,
-                      uint16_t fadeInTime,   uint16_t onTime,
-                      uint16_t fadeOutTime,  uint16_t offTime,
+                      uint16_t fadeInTime, uint16_t onTime,
+                      uint16_t fadeOutTime, uint16_t offTime,
                       bool USE_CHARGE_LOGIC, uint16_t voltagePausedCharging_mV) {
 
   // Global timeout check: turn off LEDs and block execution if FEEDBACK_ON timer has expired
@@ -141,9 +144,13 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
     return;
   }
 
-  enum PatternState { PATTERN_OFF, PATTERN_FADE_IN, PATTERN_ON, PATTERN_FADE_OUT, PATTERN_DONE };
+  enum PatternState { PATTERN_OFF,
+                      PATTERN_FADE_IN,
+                      PATTERN_ON,
+                      PATTERN_FADE_OUT,
+                      PATTERN_DONE };
 
-  static PatternState state = PATTERN_FADE_IN; // Start directly in Fade-In or Off based on setup
+  static PatternState state = PATTERN_FADE_IN;  // Start directly in Fade-In or Off based on setup
   static unsigned long stateStart = 0;
   static byte cycleCount = 0;
 
@@ -153,11 +160,12 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 
   // Track the current parameters to auto-reset state if pattern configuration changes
   static byte prevBlinkCount = 0;
-  if (prevBlinkCount != blinkCount) {
+  if (prevBlinkCount != blinkCount || FEEDBACK_PATTERN_RESTART) {
     cycleCount = 0;
     state = PATTERN_FADE_IN;
     stateStart = millis();
     prevBlinkCount = blinkCount;
+    FEEDBACK_PATTERN_RESTART = false;
   }
 
   // If we finished all requested blinks, do nothing
@@ -178,30 +186,39 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 
   // Selected voltage (fixed 3000mV threshold)
   uint16_t chargingVoltage_mV = (USE_CHARGE_LOGIC && (voltagePausedCharging_mV > (3000 - VOLTAGE_EPSILON_MV)))
-                                ? voltagePausedCharging_mV
-                                : lockedVoltage_mV;
+                                  ? voltagePausedCharging_mV
+                                  : lockedVoltage_mV;
 
   // Active color values
-  byte activeMinR = minRed,   activeMaxR = maxRed;
+  byte activeMinR = minRed, activeMaxR = maxRed;
   byte activeMinG = minGreen, activeMaxG = maxGreen;
-  byte activeMinB = minBlue,  activeMaxB = maxBlue;
+  byte activeMinB = minBlue, activeMaxB = maxBlue;
   uint16_t activeFadeOutTime = fadeOutTime;
 
   if (USE_CHARGE_LOGIC) {
     if (chargingVoltage_mV >= (4120 - VOLTAGE_EPSILON_MV)) {
-      activeMinR = 0;  activeMaxR = 15;
-      activeMinG = 30; activeMaxG = 255;
-      activeMinB = 0;  activeMaxB = 0;
+      activeMinR = 0;
+      activeMaxR = 15;
+      activeMinG = 30;
+      activeMaxG = 255;
+      activeMinB = 0;
+      activeMaxB = 0;
       activeFadeOutTime = 2000;
     } else if (chargingVoltage_mV >= (4070 - VOLTAGE_EPSILON_MV)) {
-      activeMinR = 40; activeMaxR = 255;
-      activeMinG = 40; activeMaxG = 150;
-      activeMinB = 0;  activeMaxB = 0;
+      activeMinR = 40;
+      activeMaxR = 255;
+      activeMinG = 40;
+      activeMaxG = 150;
+      activeMinB = 0;
+      activeMaxB = 0;
       activeFadeOutTime = 1000;
     } else {
-      activeMinR = 25; activeMaxR = 255;
-      activeMinG = 0;  activeMaxG = 0;
-      activeMinB = 0;  activeMaxB = 0;
+      activeMinR = 25;
+      activeMaxR = 255;
+      activeMinG = 0;
+      activeMaxG = 0;
+      activeMinB = 0;
+      activeMaxB = 0;
       activeFadeOutTime = 550;
     }
   }
@@ -274,23 +291,20 @@ void FEEDBACK_PATTERN(byte minRed,    byte maxRed,
 // ============================================================================
 void DEADBAND_FEEDBACK() {
 
-  if (!VOLUME_CONTROL_ACTIVE        || CHARGING_ACTIVE ||
-      VOLUME_REDUCTION_COUNTER != 0 || DEADBAND_COUNTER == 0) return;
+  if (!VOLUME_CONTROL_ACTIVE || CHARGING_ACTIVE || VOLUME_REDUCTION_COUNTER != 0 || DEADBAND_COUNTER == 0) return;
 
   uint16_t voltage = VOLTAGE;
 
   /*                                   --- RED ---- GREEN --- BLUE --    */
-  if (voltage >= 3560) {            //  min  max  min  max  min  max
-    if      (DEADBAND_COUNTER > 0) FADE(  0,   0,  50, 55,  10, 220);
-    else if (DEADBAND_COUNTER < 0) FADE(  0, 100,  50,  0,  10,  50);
-  }
-  else if (voltage >= 3500) {
-    if      (DEADBAND_COUNTER > 0) FADE( 65,   0,  35,  55,   0, 220);
-    else if (DEADBAND_COUNTER < 0) FADE( 65,  75,  35,   0,   0,  50);
-  }
-  else {
-    if      (DEADBAND_COUNTER > 0) FADE( 50,   0,   0,  55,   0, 220);
-    else if (DEADBAND_COUNTER < 0) FADE( 50, 150,  10,   0,   0, 100);
+  if (voltage >= 3560) {  //  min  max  min  max  min  max
+    if (DEADBAND_COUNTER > 0) FADE(0, 0, 50, 55, 10, 220);
+    else if (DEADBAND_COUNTER < 0) FADE(0, 100, 50, 0, 10, 50);
+  } else if (voltage >= 3500) {
+    if (DEADBAND_COUNTER > 0) FADE(65, 0, 35, 55, 0, 220);
+    else if (DEADBAND_COUNTER < 0) FADE(65, 75, 35, 0, 0, 50);
+  } else {
+    if (DEADBAND_COUNTER > 0) FADE(50, 0, 0, 55, 0, 220);
+    else if (DEADBAND_COUNTER < 0) FADE(50, 150, 10, 0, 0, 100);
   }
 }
 
@@ -314,7 +328,7 @@ void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
 // Function to control the duration of temporary LED feedback.
 // After the specified time, turn off the current feedback indication.
 // ============================================================================
-void FEEDBACK_ON(uint32_t MINUTES = 0, uint32_t SECONDS = 0) {
+void FEEDBACK_ON(uint32_t MINUTES, uint32_t SECONDS) {
   if (FEEDBACK_LED_ACTIVE) {
 
     // Check if the feedback duration has elapsed since the timer started.
