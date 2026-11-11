@@ -10,7 +10,7 @@ This project was built upon and inspired by previous community projects:
 
 *This project is still under active development, and any contributions or help are welcome!*
 
-An Arduino-based **automatic TV audio controller and IR remote bridge**.
+An Arduino-based **automatic TV audio controller, IR remote bridge, and browser-controlled RGB status interface**.
 
 ## Why This Project Exists
 
@@ -28,7 +28,7 @@ The device is intended to handle those sudden transitions between normal dialogu
 
 ## Limitations of Microphone-Based Detection and Safeguards
 
-Audio level detection is performed using a microphone. which means the system cannot distinguish between loud TV audio and other loud sounds in the room. For example, a conversation near the microphone can also be detected as loud audio and may trigger an automatic volume reduction.
+Audio level detection is performed using a microphone, which means the system cannot distinguish between loud TV audio and other loud sounds in the room. For example, a conversation near the microphone can also be detected as loud audio and may trigger an automatic volume reduction.
 
 To account for this limitation, automatic volume control can be disabled when it is not needed. When automatic volume control is disabled, the device sets the LED to a low-intensity red and uses a slow breathing effect that gradually transitions from the base red to white and back to red.
 
@@ -52,6 +52,10 @@ When loud audio is detected and confirmed, the controller sends Samsung **Volume
 When the audio becomes quiet again and the quiet condition is confirmed, it sends the required number of **Volume Up** commands to restore the volume to the level it had before the automatic reduction.
 
 The automatic volume reduction is limited to a configurable number of volume steps.
+
+### Browser-Based RGB Color Editing
+
+A browser-based editor connects to the Arduino over serial and adjusts the RGB LED color in real time. Connecting the editor automatically activates color-editing mode; disconnecting it, or losing its heartbeat, restores normal controller operation.
 
 The algorithm uses a state machine with separate detection and confirmation stages for:
 
@@ -177,6 +181,18 @@ The LED is used for several different purposes, including:
 The RGB feedback system uses both simple flashes/fades and a non-blocking RGB pattern state machine.
 
 Battery voltage is represented visually using different colors and fade patterns.
+
+### Browser-Based RGB Color Editor
+
+The project also includes a browser-based RGB color editor. It connects directly to the Arduino through the browser's **Web Serial API**, allowing the RGB LED colors to be adjusted from an HTML interface without using the IR remote to enter a special mode.
+
+When the browser connects, the Arduino automatically switches to RGB editing mode. Normal IR remote processing, automatic audio control, and ordinary LED feedback are suspended while editing, so they do not interfere with the selected color. Battery monitoring and charging management continue to run, and the controller remains awake while the editor is connected.
+
+The browser sends a heartbeat periodically to keep the editing session active. A normal disconnect returns the controller to its regular operating mode immediately. If the browser closes unexpectedly, the USB cable is unplugged, or communication is lost, the Arduino detects the missing heartbeat and automatically restores normal operation after **8 seconds**.
+
+The editor provides an HSV color picker, RGB and HEX value entry, a live color preview, preset and custom palettes, battery-voltage display, and serial activity log. Color changes are sent to the Arduino and applied to the RGB LED in real time.
+
+The serial connection uses **19200 baud**. The editor communicates using `RGB_GET` to request the current color and `RGB_SET,R,G,B` to set a new color. The Arduino reports the current values with `RGB_STATE,R,G,B`.
 
 ### Battery voltage display
 
@@ -516,7 +532,7 @@ The project is split into several `.ino` files for easier maintenance.
 
 | File                                     | Purpose                                                                       |
 | ---------------------------------------- | ----------------------------------------------------------------------------- |
-| `TV_Audio_Control_V10.1_SEP.11.2026.ino` | Main program, hardware definitions, global state and main loop                |
+| `TV_Audio_Control_V10.1.ino`            | Main program, hardware definitions, global state and main loop                |
 | `Automatic_Audio_Control.ino`            | Audio detection and automatic volume state machine                            |
 | `Battery_Management.ino`                 | Battery measurement and charging management                                   |
 | `RGB_Feedback.ino`                       | RGB feedback patterns and status indication                                   |
@@ -685,14 +701,15 @@ The RGBLed code in this project has been modified as described above. The origin
 
 This is a personal/hobby electronics project developed iteratively around real hardware.
 
-The current V10.1 implementation focuses on:
+The current implementation focuses on:
 
 * reliable automatic audio-based volume control
 * practical Samsung IR control
 * remote-control translation
 * battery management
 * low-power operation
-* RGB user feedback
+* RGB user feedback and browser-based color editing
+* automatic editor-mode activation and recovery after serial disconnection
 * persistent configuration
 
 The design intentionally favors a relatively direct Arduino implementation over large software abstractions, making the behavior of the physical device easier to inspect and modify.
