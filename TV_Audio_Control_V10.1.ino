@@ -28,6 +28,10 @@
 #include <RGBLed.h>
 #include <EEPROM.h>
 
+#include <string.h>
+// Serial communication function declarations
+void HANDLE_RGB_SERIAL();
+
 // ============================================================================
 // PIN DEFINITIONS - Hardware connections
 // ============================================================================
@@ -48,8 +52,8 @@ const uint8_t PIN_BATTERY_LOAD = 7;      // Battery load pin - applies load when
 
 RGBLed led(10, 6, 9, RGBLed::COMMON_ANODE);  // RGB LED object - pins 10,6,9 for R,G,B
 
-IRrecv irrecv(PIN_IR_RECEIVER);              // IR receiver object - listens for remote signals
-decode_results results;                      // IR code results object - stores decoded IR data
+IRrecv irrecv(PIN_IR_RECEIVER);  // IR receiver object - listens for remote signals
+decode_results results;          // IR code results object - stores decoded IR data
 
 // ============================================================================
 // STATE DEFINITIONS - LED feedback modes
@@ -72,12 +76,12 @@ enum FEEDBACK_MODE : uint8_t {
 // Using const makes them type-safe and easier to debug.
 // ============================================================================
 
-#define MAX_EXPAND_STEPS 6                         // 6 steps * 40 = 240 max range
-#define MAX_SHRINK_STEPS 3                         // 3 steps * 40 = 120 min range (or whatever you want)
+#define MAX_EXPAND_STEPS 6  // 6 steps * 40 = 240 max range
+#define MAX_SHRINK_STEPS 3  // 3 steps * 40 = 120 min range (or whatever you want)
 
-uint16_t AUDIO_BASELINE_HIGH        = 660;         // Upper threshold for loud audio detection
-uint16_t AUDIO_BASELINE_LOW         = 340;         // Lower threshold for loud audio detection
-const uint16_t ANALOG_READ_DELAY_MS = 500;         // Delay between analog readings
+uint16_t AUDIO_BASELINE_HIGH = 660;         // Upper threshold for loud audio detection
+uint16_t AUDIO_BASELINE_LOW = 340;          // Lower threshold for loud audio detection
+const uint16_t ANALOG_READ_DELAY_MS = 500;  // Delay between analog readings
 
 // ============================================================================
 // EEPROM WEAR LEVELING - Spread writes to reduce wear
@@ -107,97 +111,96 @@ const uint8_t EEPROM_CYCLE_SIZE = 8;             // slots per setting (must divi
 // ============================================================================
 // Battery Management Timing
 
-#define MS(x)      ((unsigned long)(x))
+#define MS(x) ((unsigned long)(x))
 #define SECONDS(x) ((unsigned long)(x)*1000UL)
 #define MINUTES(x) ((unsigned long)(x)*60UL * 1000UL)
-#define HOURS(x)   ((unsigned long)(x)*60UL * 60UL * 1000UL)
+#define HOURS(x) ((unsigned long)(x)*60UL * 60UL * 1000UL)
 
 
 const unsigned long TIME_TO_CHECK_BATTERY_CHARGE_STATE = MINUTES(15);
-const unsigned long WAITE_FOR_VOLTAGE_STABILIZATION    = SECONDS(5);
-const unsigned long TIME_TO_READ_BATTERY_VOLTAGE       = MINUTES(30);
+const unsigned long WAITE_FOR_VOLTAGE_STABILIZATION = SECONDS(5);
+const unsigned long TIME_TO_READ_BATTERY_VOLTAGE = MINUTES(30);
 
-const uint16_t START_CHARGING_VOLTAGE = 3450;   // Start charging if voltage is 3.45V
-const uint16_t STOP_CHARGING_VOLTAGE  = 4150;   // Stop charging if voltage is  4.14V
+const uint16_t START_CHARGING_VOLTAGE = 3450;  // Start charging if voltage is 3.45V
+const uint16_t STOP_CHARGING_VOLTAGE = 4150;   // Stop charging if voltage is  4.14V
 
 // ============================================================================
 // BATTERY VARIABLES (all voltage values in millivolts)
 // ============================================================================
 
-static bool LOAD_TEST_ACTIVE                 = false;
-static bool VOLTAGE_CAPTURED                 = false;
-static unsigned long LOAD_TEST_TIMER         = 0;
+static bool LOAD_TEST_ACTIVE = false;
+static bool VOLTAGE_CAPTURED = false;
+static unsigned long LOAD_TEST_TIMER = 0;
 
-const uint8_t BATTERY_VOLTAGE_OFFSET         = 19;  // Calibration correction in mV (tune against a multimeter)
-uint16_t VOLTAGE                             = 0;
-uint16_t VOLTAGE_DURING_PAUSED_CHARGING      = 0;
-unsigned long PREVIOUS_VOLTAGE_READING       = 0;
-unsigned long LAST_TIME_VOLTAGE_READING      = 0;
+const uint8_t BATTERY_VOLTAGE_OFFSET = 24;  // Calibration correction in mV (tune against a multimeter)
+uint16_t VOLTAGE = 0;
+uint16_t VOLTAGE_DURING_PAUSED_CHARGING = 0;
+unsigned long PREVIOUS_VOLTAGE_READING = 0;
+unsigned long LAST_TIME_VOLTAGE_READING = 0;
 unsigned long PAUSE_CHARGING_TO_READ_VOLTAGE = 0;
 
-const uint8_t VOLTAGE_EPSILON_MV             = 5;  // Millivolt comparison tolerance
-static bool FIRST_VOLTAGE_READING_TAKEN      = true;
-static bool CHARGING_ACTIVE                  = false;
-static bool CHARGING_PAUSED                  = false;
-static bool LOW_VOLTAGE_START_CHARGING       = false;
-static bool CHARGING_CYCLE_COMPLETE          = false;
-bool BATTERY_MEASUREMENT_ACTIVE              = false;
+const uint8_t VOLTAGE_EPSILON_MV = 5;  // Millivolt comparison tolerance
+static bool FIRST_VOLTAGE_READING_TAKEN = true;
+static bool CHARGING_ACTIVE = false;
+static bool CHARGING_PAUSED = false;
+static bool LOW_VOLTAGE_START_CHARGING = false;
+static bool CHARGING_CYCLE_COMPLETE = false;
+bool BATTERY_MEASUREMENT_ACTIVE = false;
 
 // ============================================================================
 // LED CONTROL VARIABLES
 // ============================================================================
 
 byte LED_BRIGHTNESS = 0;
-byte RED_VALUE      = 0, GREEN_VALUE     = 0, BLUE_VALUE     = 0;
-byte RED_INTENSITY  = 0, GREEN_INTENSITY = 0, BLUE_INTENSITY = 0;
+byte RED_VALUE = 0, GREEN_VALUE = 0, BLUE_VALUE = 0;
+byte RED_INTENSITY = 0, GREEN_INTENSITY = 0, BLUE_INTENSITY = 0;
 
-unsigned int FEEDBACK_LED_DYNAMIC_FADE_OUT        = 0;
-unsigned long PREVIOUS_MILLIS                     = 0;
-unsigned long RGB_FEEDBACK_START_TIME             = 0;
-unsigned long RGB_FEEDBACK_ACTIVE_TIME            = 0;
-unsigned long FEEDBACK_OFF_START_TIME             = 0;
+unsigned int FEEDBACK_LED_DYNAMIC_FADE_OUT = 0;
+unsigned long PREVIOUS_MILLIS = 0;
+unsigned long RGB_FEEDBACK_START_TIME = 0;
+unsigned long RGB_FEEDBACK_ACTIVE_TIME = 0;
+unsigned long FEEDBACK_OFF_START_TIME = 0;
 unsigned long FEEDBACK_OFF_AFTER_IR_DETECTED_TIME = 0;
 
-static bool FEEDBACK_LED_ACTIVE                   = false;
-static bool FEEDBACK_OFF_ACTIVE                   = false;
-bool FEEDBACK_PATTERN_RESTART                     = false;
+static bool FEEDBACK_LED_ACTIVE = false;
+static bool FEEDBACK_OFF_ACTIVE = false;
+bool FEEDBACK_PATTERN_RESTART = false;
 
 // ============================================================================
 // RGB MODE VARIABLES
 // ============================================================================
 
-static char INPUT_BUFFER[4]            = "";
-static byte SELECTED_COLOR             = 0;
-static bool AWAITING_CONFIRMATION      = false;
-static bool FIRST_RGB_RUN              = true;
+static char INPUT_BUFFER[4] = "";
+static byte SELECTED_COLOR = 0;
+static bool AWAITING_CONFIRMATION = false;
 static bool REMOTE_CONTROL_MODE_ACTIVE = true;
 
 // ============================================================================
 // AUDIO CONTROL VARIABLES
 // ============================================================================
 
-int8_t DEADBAND_COUNTER                     = 0;
-int8_t VOLUME_REDUCTION_COUNTER             = 0;
-int8_t REACTION_DELAY                       = 0;
-int8_t PREVIOUS_REACTION_DELAY              = -1;
+int8_t DEADBAND_COUNTER = 0;
+int8_t VOLUME_REDUCTION_COUNTER = 0;
+int8_t REACTION_DELAY = 0;
+int8_t PREVIOUS_REACTION_DELAY = -1;
 
-volatile bool VOLUME_CONTROL_ACTIVE         = true;
-bool stillLoudAudio                         = true;
-bool MUTED                                  = false;
+volatile bool VOLUME_CONTROL_ACTIVE = true;
+bool stillLoudAudio = true;
+bool MUTED = false;
 const unsigned long VOLUME_COMMAND_INTERVAL = 200;  // 200 ms between commands
 
 // ============================================================================
 // IR CONTROL VARIABLES
 // ============================================================================
 
-uint8_t FILTERED_CODE                    = 0;
-uint8_t LAST_IR_CODE                     = 0;
-uint8_t CONSECUTIVE_IR_CODE_COUNT        = 0;
-unsigned long LAST_IR_SIGNAL_TIME        = 0;
+uint8_t FILTERED_CODE = 0;
+uint8_t LAST_IR_CODE = 0;
+uint8_t CONSECUTIVE_IR_CODE_COUNT = 0;
+unsigned long LAST_IR_SIGNAL_TIME = 0;
 unsigned long LAST_PROCESSED_SIGNAL_TIME = 0;
-const uint8_t SIGNAL_INTERVAL            = 5;
-const uint8_t REPEAT_INTERVAL            = 1;
-static bool IR_CODE_REPEATING            = false;
+const uint8_t SIGNAL_INTERVAL = 5;
+const uint8_t REPEAT_INTERVAL = 1;
+static bool IR_CODE_REPEATING = false;
 
 // ============================================================================
 // SYSTEM STATE FLAGS
@@ -205,18 +208,18 @@ static bool IR_CODE_REPEATING            = false;
 
 static bool TV_AUTO_POWER_OFF_ACTIVE = false;
 static bool SERIAL_DATA_PRINT_ACTIVE = false;
-static bool SELECT_JELLYFIN          = false;
-static bool SELECT_HDMI              = false;
-bool MY_TONE_ENABLED                 = true;
+static bool SELECT_JELLYFIN = false;
+static bool SELECT_HDMI = false;
+bool MY_TONE_ENABLED = true;
 
 // ============================================================================
 // POWER MANAGEMENT VARIABLES
 // ============================================================================
 
-uint32_t GO_TO_SLEEP_START_TIME      = 0;
+uint32_t GO_TO_SLEEP_START_TIME = 0;
 static bool ARDUINO_WAITING_TO_SLEEP = false;
-volatile bool WAKE_UP_TRIGGERED      = false;
-volatile bool STAY_AWAKE             = false;
+volatile bool WAKE_UP_TRIGGERED = false;
+volatile bool STAY_AWAKE = false;
 
 // ============================================================================
 // FUNCTION DECLARATIONS
@@ -225,7 +228,7 @@ volatile bool STAY_AWAKE             = false;
 void READ_ANALOG_DATA(bool READ_NOW = false);
 
 // LED feedback function declarations
-void FEEDBACK_ON (uint32_t MINUTES = 0, uint32_t SECONDS = 0);
+void FEEDBACK_ON(uint32_t MINUTES = 0, uint32_t SECONDS = 0);
 void FEEDBACK_OFF(uint32_t MINUTES = 0, uint32_t SECONDS = 0);
 
 // Remote control function declarations
@@ -258,12 +261,12 @@ static inline void FADE(
     minBlue, maxBlue,
     0,  // Blink count. If 0 it fades continuously.
     //            -audioLowered- -DEADBAND-       // Timing
-    audioLowered ? MS(500) :  MS(150),     // Fade IN
-    audioLowered ? MS( 50) :  MS(500),     // Stay ON
-    audioLowered ? MS(300) :  MS(250),     // Fade OFF
-    audioLowered ? MS(500) : SECONDS(2),   // Stay OFF
-    false,                                 // Use charge logic?
-    0                                      // Voltage during charging(related to charge logic)
+    audioLowered ? MS(500) : MS(150),     // Fade IN
+    audioLowered ? MS(50) : MS(500),      // Stay ON
+    audioLowered ? MS(300) : MS(250),     // Fade OFF
+    audioLowered ? MS(500) : SECONDS(2),  // Stay OFF
+    false,                                // Use charge logic?
+    0                                     // Voltage during charging(related to charge logic)
   );
 }
 
@@ -405,7 +408,7 @@ void setup() {
   digitalWrite(PIN_BATTERY_LOAD, LOW);  // Keep load off initially
 
   // Serial communication and ADC configuration
-  Serial.begin(115200);
+  Serial.begin(19200);
 
   // ADC prescaler = 32
   // 8 MHz / 32 = 250 kHz ADC clock
@@ -414,10 +417,10 @@ void setup() {
   sbi(ADCSRA, ADPS0);
 
   // Initialize timing variables
-  PREVIOUS_VOLTAGE_READING       = millis();
-  LAST_TIME_VOLTAGE_READING      = millis();
+  PREVIOUS_VOLTAGE_READING = millis();
+  LAST_TIME_VOLTAGE_READING = millis();
   PAUSE_CHARGING_TO_READ_VOLTAGE = millis();
-  FIRST_VOLTAGE_READING_TAKEN    = true;
+  FIRST_VOLTAGE_READING_TAKEN = true;
 
   // IR communication initialization
   IrSender.begin(PIN_IR_LED, DISABLE_LED_FEEDBACK);
@@ -437,8 +440,8 @@ void setup() {
 // ============================================================================
 void RESTORE_EEPROM_SETTINGS() {
 
-  SELECT_JELLYFIN          = eepromWearLevelRead(EEPROM_JELLYFIN_SELECT_BASE);
-  SELECT_HDMI              = eepromWearLevelRead(EEPROM_HDMI_SELECT_BASE);
+  SELECT_JELLYFIN = eepromWearLevelRead(EEPROM_JELLYFIN_SELECT_BASE);
+  SELECT_HDMI = eepromWearLevelRead(EEPROM_HDMI_SELECT_BASE);
   SERIAL_DATA_PRINT_ACTIVE = eepromWearLevelRead(EEPROM_SERIAL_ACTIVE_BASE);
 }
 
@@ -569,9 +572,7 @@ void HANDLE_AUDIO_CONTROL() {
 void HANDLE_STATUS() {
 
   if (!REMOTE_CONTROL_MODE_ACTIVE) {
-    if (!FIRST_RGB_RUN) {
-      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
-    }
+    HANDLE_RGB_SERIAL();
   } else if (SERIAL_DATA_PRINT_ACTIVE) {
     // Beep every 5 minutes while serial-data print is active
     MY_TONE_REPEAT(3700, 30, 2, MINUTES(5));
