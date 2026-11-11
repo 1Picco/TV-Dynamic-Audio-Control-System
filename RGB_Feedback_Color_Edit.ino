@@ -1,198 +1,140 @@
-// ============================================================================
-// RGB FEEDBACK COLOR EDITING FUNCTION
-// ============================================================================
 
 // ============================================================================
-// RGB INTENSITY POINTER TABLE
-// Allows accessing RGB values using SELECTED_COLOR index
-// 0 = Red, 1 = Green, 2 = Blue
+// RGB SERIAL COMMUNICATION
+// ============================================================================
+// Receives RGB colour commands from the browser-based colour editor.
+//
+// Commands:
+// RGB_GET         - Request current RGB values
+// RGB_SET,R,G,B   - Set new RGB values (0-255)
+//
+// Responses:
+// RGB_STATE,R,G,B - Current RGB values
 // ============================================================================
 
-byte* RGB_VALUES[3] = { &RED_INTENSITY, &GREEN_INTENSITY, &BLUE_INTENSITY };
+const byte RGB_SERIAL_BUFFER_SIZE = 24;
+
+char RGB_SERIAL_BUFFER[RGB_SERIAL_BUFFER_SIZE];
+byte RGB_SERIAL_LENGTH = 0;
+bool RGB_SERIAL_OVERFLOW = false;
 
 // ============================================================================
-// RGB COLOR EDIT MODE
-// Allows editing RGB intensity values using IR remote
-// - Left/Right : Select color (R, G, B)
-// - Numeric keys : Enter intensity value (0–255)
-// - OK : Confirm entered value
-// - Up/Down : Increment / Decrement selected color
+// Send current RGB values to the browser
 // ============================================================================
 
-void RGB_CODE_EDIT() {
+void PRINT_RGB_SERIAL_STATE() {
 
-  FIRST_RGB_RUN = false;
+  Serial.print(F("RGB_STATE,"));
+  Serial.print(RED_INTENSITY);
+  Serial.print(',');
+  Serial.print(GREEN_INTENSITY);
+  Serial.print(',');
+  Serial.println(BLUE_INTENSITY);
+}
 
-  // ==========================================================================
-  // HANDLE COLOR SELECTION (LEFT / RIGHT ARROWS)
+// ============================================================================
+// Validate and convert an RGB intensity value (0-255)
+// ============================================================================
 
-  if (FILTERED_CODE == 0x5A || FILTERED_CODE == 0x5B) {
+bool PARSE_RGB_SERIAL_VALUE(const char* text, byte& value) {
 
-    // Left arrow → cycle backward
-    if (FILTERED_CODE == 0x5A) {
-      SELECTED_COLOR = (SELECTED_COLOR + 2) % 3;
-    }
+  if (*text == '\0') return false;
 
-    // Right arrow → cycle forward
-    else {
-      SELECTED_COLOR = (SELECTED_COLOR + 1) % 3;
-    }
+  uint16_t parsedValue = 0;
 
-    PRINT_SELECTED_COLOR();
+  while (*text) {
+
+    if (*text < '0' || *text > '9') return false;
+
+    parsedValue = parsedValue * 10 + (*text - '0');
+
+    if (parsedValue > 255) return false;
+
+    text++;
   }
 
-  // ==========================================================================
-  // HANDLE NUMERIC INPUT FOR COLOR INTENSITY
+  value = (byte)parsedValue;
+  return true;
+}
 
-  int8_t digit = (FILTERED_CODE <= 9) ? FILTERED_CODE : -1;
+// ============================================================================
+// Process a complete RGB serial command
+// ============================================================================
 
-  if (digit != -1) {
+void PROCESS_RGB_SERIAL_COMMAND() {
 
-    // Get current buffer length
-    byte len = strlen(INPUT_BUFFER);
+  RGB_SERIAL_BUFFER[RGB_SERIAL_LENGTH] = '\0';
 
-    // Allow maximum 3 digits (RGB range: 0–255)
-    if (len < 3) {
+  if (strcmp(RGB_SERIAL_BUFFER, "RGB_GET") == 0) {
 
-      // Append digit to buffer
-      INPUT_BUFFER[len] = '0' + digit;
-      INPUT_BUFFER[len + 1] = '\0';
+    PRINT_RGB_SERIAL_STATE();
+    return;
+  }
 
-      uint16_t value = atoi(INPUT_BUFFER);
+  if (strncmp(RGB_SERIAL_BUFFER, "RGB_SET,", 8) == 0) {
 
-      // Prevent values above RGB limit
-      if (value > 255) {
+    char* redText = RGB_SERIAL_BUFFER + 8;
+    char* comma1 = strchr(redText, ',');
 
-        ACTIVE_COLOR();
-        Serial.println(INPUT_BUFFER);
-        Serial.println(F("MAX value: 255"));
-        ACTIVE_COLOR();
+    if (!comma1) return;
 
-        INPUT_BUFFER[0] = '\0';   // Clear buffer
-        Serial.println(F("0"));
-        AWAITING_CONFIRMATION = false;
+    *comma1 = '\0';
+
+    char* greenText = comma1 + 1;
+    char* comma2 = strchr(greenText, ',');
+
+    if (!comma2) return;
+
+    *comma2 = '\0';
+
+    char* blueText = comma2 + 1;
+
+    byte red, green, blue;
+
+    if (PARSE_RGB_SERIAL_VALUE(redText, red) && PARSE_RGB_SERIAL_VALUE(greenText, green) && PARSE_RGB_SERIAL_VALUE(blueText, blue)) {
+
+      RED_INTENSITY = red;
+      GREEN_INTENSITY = green;
+      BLUE_INTENSITY = blue;
+
+      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
+
+      PRINT_RGB_SERIAL_STATE();
+    }
+  }
+}
+
+// ============================================================================
+// Read and process incoming browser serial commands
+// ============================================================================
+
+void HANDLE_RGB_SERIAL() {
+
+  while (Serial.available()) {
+
+    char incoming = Serial.read();
+
+    if (incoming == '\r') continue;
+
+    if (incoming == '\n') {
+
+      if (!RGB_SERIAL_OVERFLOW && RGB_SERIAL_LENGTH > 0) {
+        PROCESS_RGB_SERIAL_COMMAND();
       }
+
+      RGB_SERIAL_LENGTH = 0;
+      RGB_SERIAL_OVERFLOW = false;
+    }
+
+    else if (!RGB_SERIAL_OVERFLOW) {
+
+      if (RGB_SERIAL_LENGTH < RGB_SERIAL_BUFFER_SIZE - 1) {
+        RGB_SERIAL_BUFFER[RGB_SERIAL_LENGTH++] = incoming;
+      }
+
       else {
-
-        ACTIVE_COLOR();
-        Serial.println(INPUT_BUFFER);
-        AWAITING_CONFIRMATION = true;
+        RGB_SERIAL_OVERFLOW = true;
       }
     }
-
-    // Safety check if buffer somehow exceeds expected length
-    else {
-
-      Serial.println(F("3 digits MAX."));
-      ACTIVE_COLOR();
-
-      INPUT_BUFFER[0] = '\0';
-      Serial.println(F("0"));
-      AWAITING_CONFIRMATION = false;
-    }
-    
-    // Delay depending on IR repeat state
-    delay(IR_CODE_REPEATING ? 1 : 200);
-
-    return;   // Exit after handling digit input
   }
-
-  // ==========================================================================
-  // HANDLE CONFIRMATION (OK BUTTON)
-
-  if (FILTERED_CODE == 0x5C) {
-
-    if (AWAITING_CONFIRMATION) {
-
-      byte value = constrain(atoi(INPUT_BUFFER), 0, 255);
-
-      // Apply value to selected RGB channel
-      *RGB_VALUES[SELECTED_COLOR] = value;
-
-      // Update LED color
-      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
-      PRINT_RGB_VALUES();
-
-      // Reset input state
-      INPUT_BUFFER[0] = '\0';
-      AWAITING_CONFIRMATION = false;
-    }
-  }
-
-  // ==========================================================================
-  // HANDLE INTENSITY ADJUSTMENT (UP / DOWN BUTTONS)
-  if (SELECTED_COLOR != -1) {
-
-    // ------------------------------------------------------------------------
-    // UP BUTTON (Increase intensity)
-
-    if (FILTERED_CODE == 0x58) {
-
-      byte increment = IR_CODE_REPEATING ? 2 : 1;
-
-      *RGB_VALUES[SELECTED_COLOR] =
-        constrain(*RGB_VALUES[SELECTED_COLOR] + increment, 0, 255);
-
-      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
-      PRINT_RGB_VALUES();
-    }
-
-    // ------------------------------------------------------------------------
-    // DOWN BUTTON (Decrease intensity)
-
-    else if (FILTERED_CODE == 0x59) {
-
-      byte decrement = IR_CODE_REPEATING ? 2 : 1;
-
-      *RGB_VALUES[SELECTED_COLOR] =
-        constrain(*RGB_VALUES[SELECTED_COLOR] - decrement, 0, 255);
-
-      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
-      PRINT_RGB_VALUES();
-    }
-  }
-
-  // GENERAL INPUT DELAY
-  delay(IR_CODE_REPEATING ? 1 : 200);
-}
-
-// ============================================================================
-// Function to print the currently selected color name
-// Used for RGB mode color selection feedback
-
-void ACTIVE_COLOR() {
-
-  switch (SELECTED_COLOR) {
-    case 0: Serial.print(F("Red:")); break;    // Print "Red: " for red selection
-    case 1: Serial.print(F("Green:")); break;  // Print "Green: " for green selection
-    case 2: Serial.print(F("Blue:")); break;   // Print "Blue: " for blue selection
-  }
-}
-
-// ============================================================================
-// Function to print the currently selected color with emphasis
-// Used for RGB mode color selection display
-
-void PRINT_SELECTED_COLOR() {
-
-  switch (SELECTED_COLOR) {
-    case 0: Serial.println(F("> Red")); break;    // Print "> Red" for red selection
-    case 1: Serial.println(F("> Green")); break;  // Print "> Green" for green selection
-    case 2: Serial.println(F("> Blue")); break;   // Print "> Blue" for blue selection
-  }
-}
-
-// ============================================================================
-// Function to print current RGB intensity values
-// Used for RGB mode debugging and feedback
-
-void PRINT_RGB_VALUES() {
-
-  Serial.print(F("RGB values: ("));
-  Serial.print(RED_INTENSITY);    // Print red intensity value
-  Serial.print(F(", "));
-  Serial.print(GREEN_INTENSITY);  // Print green intensity value
-  Serial.print(F(", "));
-  Serial.print(BLUE_INTENSITY);   // Print blue intensity value
-  Serial.println(F(")"));        // Close parentheses and newline
 }
