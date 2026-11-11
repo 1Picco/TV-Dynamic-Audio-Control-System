@@ -346,7 +346,6 @@ void FUNCTION_MODE_TOGGLE() {
       // Enter remote-control mode.
       // Reset feedback state and prepare the first RGB feedback display.
       MY_TONE(4000, -350, 30, 2);
-      FIRST_RGB_RUN = true;
       RESET_FEEDBACK_TIMERS();
       led.flash(220, 220, 200, 30, 100, 2);
 
@@ -356,11 +355,6 @@ void FUNCTION_MODE_TOGGLE() {
       SERIAL_DATA_PRINT_ACTIVE = false;
       FEEDBACK_LED_ACTIVE = false;
       MY_TONE(3300, +350, 30, 2);
-
-      // Show the currently selected color and initialize the edit color to red.
-      PRINT_SELECTED_COLOR();
-      led.setColor(50, 0, 0);
-      info.println(F("50, 0, 0"));
       delay(MS(150));
     }
 
@@ -371,7 +365,7 @@ void FUNCTION_MODE_TOGGLE() {
   if (REMOTE_CONTROL_MODE_ACTIVE) {
     REMOTE_CONTROL_MODE();
   } else {
-    RGB_CODE_EDIT();
+    HANDLE_RGB_SERIAL();
   }
 }
 
