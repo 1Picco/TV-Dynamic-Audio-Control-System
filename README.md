@@ -188,7 +188,7 @@ The project also includes a browser-based RGB color editor. It connects directly
 
 When the browser connects, the Arduino automatically switches to RGB editing mode. Normal IR remote processing, automatic audio control, and ordinary LED feedback are suspended while editing, so they do not interfere with the selected color. Battery monitoring and charging management continue to run, and the controller remains awake while the editor is connected.
 
-The browser sends a heartbeat periodically to keep the editing session active. A normal disconnect returns the controller to its regular operating mode immediately. If the browser closes unexpectedly, the USB cable is unplugged, or communication is lost, the Arduino detects the missing heartbeat and automatically restores normal operation after **8 seconds**.
+The browser sends a heartbeat periodically to keep the editing session active. A normal disconnect returns the controller to its regular operating mode immediately. If the browser closes unexpectedly, the USB cable is unplugged, or communication is lost, the Arduino detects the missing heartbeat and automatically restores normal operation after **5 seconds**.
 
 The editor provides an HSV color picker, RGB sliders and numeric fields, HEX value entry, a live color preview, preset and custom palettes, battery-voltage display, and serial activity log. Changes made with the picker, RGB controls, HEX field, or palette are sent to the Arduino automatically and applied to the RGB LED in real time. There is no separate **Send to Arduino** button because color changes are transmitted as they are made.
 
