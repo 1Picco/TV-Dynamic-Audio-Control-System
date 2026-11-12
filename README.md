@@ -194,7 +194,7 @@ The editor provides an HSV color picker, RGB sliders and numeric fields, HEX val
 
 ### How to use the RGB color editor
 
-1. Open `Arduino_RGB_Colour_Editor.html` in **Google Chrome or Microsoft Edge** on a computer.
+1. Open `TV Controller – RGB Feedback Studio` in **Google Chrome or Microsoft Edge** on a computer.
 2. Connect the Arduino to the computer through its USB-to-serial connection. Close the Arduino Serial Monitor or any other program using the same COM port.
 3. Click **Connect to Arduino**, select the Arduino's serial/COM port, and connect using **19200 baud**.
 4. Once the editor reports that it is active, choose a color using the HSV picker, RGB controls, HEX field, or one of the color palettes. The LED updates automatically; no confirmation or send button is required.
