@@ -14,7 +14,10 @@
 // with a multimeter and use: BANDGAP_CONSTANT = measured_VCC_mV * ADC_reading
 // (the ADC reading of the bandgap, see the debug print below).
 
-const uint32_t BANDGAP_CONSTANT = 1125300UL;
+const uint32_t BANDGAP_CONSTANT = 1125600UL;
+
+uint16_t RAW_BANDGAP = 0;   // raw ADC reading of the 1.1 V bandgap
+uint16_t RAW_A3 = 0;        // raw ADC reading of the battery divider pin
 
 uint16_t GET_VCC_MV() {
 
@@ -34,6 +37,8 @@ uint16_t GET_VCC_MV() {
   while (bit_is_set(ADCSRA, ADSC))
     ;
   uint16_t adc = ADC;
+
+  RAW_BANDGAP = adc;   // <-- store the raw reading
 
   // Protect against division by zero (should never happen).
   if (adc == 0) return 3360;
@@ -56,6 +61,8 @@ uint16_t GET_BATTERY_VOLTAGE() {
   // (high source impedance divider needs the sample capacitor to settle).
   analogRead(PIN_BATTERY_VOLTAGE);
 
+  RAW_A3 = analogRead(PIN_BATTERY_VOLTAGE);   // <-- store the raw reading
+
   // ADC reading (0-1023) -> mV at pin A3, using the measured VCC.
   uint32_t raw_mV = ((uint32_t)analogRead(PIN_BATTERY_VOLTAGE) * vcc_mV) / 1023UL;
 
@@ -73,7 +80,7 @@ uint16_t GET_BATTERY_VOLTAGE() {
 uint16_t READ_BATTERY_VOLTAGE() {
 
   // Do not perform a battery measurement while charging.
-  if (CHARGING_ACTIVE) return;
+  if (CHARGING_ACTIVE) return VOLTAGE;
 
   unsigned long CURRENT_MILLIS = millis();
 
@@ -130,7 +137,7 @@ uint16_t READ_BATTERY_VOLTAGE() {
 
     // After the initial reading, update the LED feedback using the
     // newly measured battery voltage status.
-    if (!CHARGING_ACTIVE && FIRST_VOLTAGE_READING_TAKEN) {
+    if (!CHARGING_ACTIVE && FIRST_VOLTAGE_READING_TAKEN && REMOTE_CONTROL_MODE_ACTIVE) {
       FEEDBACK_LED_ACTIVE = true;
       FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
     }
