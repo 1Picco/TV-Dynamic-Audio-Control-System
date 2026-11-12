@@ -120,8 +120,21 @@ const unsigned long TIME_TO_CHECK_BATTERY_CHARGE_STATE = MINUTES(15);
 const unsigned long WAITE_FOR_VOLTAGE_STABILIZATION = SECONDS(5);
 const unsigned long TIME_TO_READ_BATTERY_VOLTAGE = MINUTES(30);
 
-const uint16_t START_CHARGING_VOLTAGE = 3450;  // Start charging if voltage is 3.45V
-const uint16_t STOP_CHARGING_VOLTAGE = 4150;   // Stop charging if voltage is  4.14V
+// Charging threshold limits (all values in millivolts)
+const uint16_t MIN_START_CHARGING_VOLTAGE = 3400;
+const uint16_t MAX_START_CHARGING_VOLTAGE = 4000;
+const uint16_t MIN_STOP_CHARGING_VOLTAGE = 3800;
+const uint16_t MAX_STOP_CHARGING_VOLTAGE = 4200;
+const uint16_t MIN_CHARGING_THRESHOLD_GAP = 200;
+
+// Default charging thresholds
+uint16_t START_CHARGING_VOLTAGE = 3450;
+uint16_t STOP_CHARGING_VOLTAGE = 4150;
+
+// EEPROM storage for charging thresholds: 8 wear-levelled records, 7 bytes each.
+const uint8_t EEPROM_CHARGING_THRESHOLDS_BASE = 32;
+const uint8_t EEPROM_CHARGING_THRESHOLDS_SLOT_COUNT = 8;
+const uint8_t EEPROM_CHARGING_THRESHOLDS_SLOT_SIZE = 7;
 
 // ============================================================================
 // BATTERY VARIABLES (all voltage values in millivolts)
@@ -429,6 +442,7 @@ void setup() {
 
   // Restore persistent settings
   RESTORE_EEPROM_SETTINGS();
+  RESTORE_CHARGING_THRESHOLDS();
   RESTORE_CHARGING_STATE();
 
   // Final startup initialization
