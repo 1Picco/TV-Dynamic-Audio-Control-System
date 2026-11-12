@@ -23,7 +23,7 @@ void REMOTE_CONTROL_MODE() {
       MUTED = false;                // Deactivates TV MUTED function if was enabled.
       info.println(F("Volume -"));
 
-      if (LOAD_TEST_ACTIVE) return;
+      if (LOAD_TEST_ACTIVE) break;
       if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
         // If single button pess flash LED RED, else if button is hold pressed set LED RED.
         IR_CODE_REPEATING ? led.setColor(220, 20, 0) : led.flash(220, 20, 0, 35, 0, 1);
@@ -38,7 +38,7 @@ void REMOTE_CONTROL_MODE() {
       MUTED = false;                //Deactivates TV MUTED function if was enabled.
       info.println(F("Volume + :"));
 
-      if (LOAD_TEST_ACTIVE) return;
+      if (LOAD_TEST_ACTIVE) break;
       if (!CHARGING_ACTIVE) {       // If battery charging active, skip LED feedback.
         // If single button pess flash LED GREEN, else if button is hold pressed set LED GREEN.
         IR_CODE_REPEATING ? led.setColor(40, 220, 0) : led.flash(40, 220, 0, 35, 0, 1);
@@ -278,5 +278,5 @@ void REMOTE_CONTROL_MODE() {
 
   // Short delay after every processed IR command.
   // Repeating commands use a shorter delay so held buttons remain responsive.
-  delay(IR_CODE_REPEATING ? 1 : 200);
+  delay(IR_CODE_REPEATING ? 1 : 150);
 }
