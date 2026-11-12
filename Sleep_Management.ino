@@ -17,6 +17,9 @@ void TIME_TO_WAKE_UP() {
 void GO_TO_SLEEP(bool SLEEP_NOW, uint32_t HOURS, uint32_t MINUTES, uint32_t SECONDS) {
   uint32_t timeToSleep = (HOURS + MINUTES + SECONDS);
 
+  // Keep the controller awake while the browser-based RGB editor is connected.
+  if (!REMOTE_CONTROL_MODE_ACTIVE) return;
+
   // Enter sleep immediately when requested, or when the configured waiting
   // period has elapsed.
   if (SLEEP_NOW || (ARDUINO_WAITING_TO_SLEEP && (millis() - GO_TO_SLEEP_START_TIME >= timeToSleep))) {
@@ -34,6 +37,8 @@ void GO_TO_SLEEP(bool SLEEP_NOW, uint32_t HOURS, uint32_t MINUTES, uint32_t SECO
 
       // Disable peripherals to maximize power savings during sleep.
       digitalWrite(PERIPHERAL_POWER, HIGH);  // Cut power to external peripherals
+
+      ADCSRA &= ~_BV(ADEN);  // disable ADC first
       power_adc_disable();
       power_usart0_disable();
       power_spi_disable();
@@ -149,7 +154,12 @@ void GO_TO_SLEEP(bool SLEEP_NOW, uint32_t HOURS, uint32_t MINUTES, uint32_t SECO
 
     // Re-enable all peripherals required for normal active-mode operation.
     digitalWrite(PERIPHERAL_POWER, LOW);  // Power UP all peripherals
-    power_adc_enable();
+    power_adc_enable();                   // re-enable ADC
+    ADCSRA |= _BV(ADEN);
+    sbi(ADCSRA, ADPS2);
+    cbi(ADCSRA, ADPS1);
+    sbi(ADCSRA, ADPS0);               // prescaler 32, as in setup()
+    analogRead(PIN_BATTERY_VOLTAGE);  // dummy conversion, discard
     power_usart0_enable();
     power_spi_enable();
     power_timer0_enable();
@@ -159,13 +169,13 @@ void GO_TO_SLEEP(bool SLEEP_NOW, uint32_t HOURS, uint32_t MINUTES, uint32_t SECO
     // Reinitialize the IR receiver after leaving sleep mode.
     irrecv.enableIRIn();
 
+    // Request a fresh battery-voltage reading after waking.
+    REQUEST_BATTERY_VOLTAGE_READING();
+
     // Cancel any pending temporary IR feedback timeout.
     FEEDBACK_OFF_ACTIVE = false;
     GO_TO_SLEEP_START_TIME = millis();
     ARDUINO_WAITING_TO_SLEEP = true;
-
-    // Request a fresh battery-voltage reading after waking.
-    REQUEST_BATTERY_VOLTAGE_READING();
 
     // White flash indicates that normal active operation has resumed.
     led.flash(220, 220, 200, 30, 0, 1);
