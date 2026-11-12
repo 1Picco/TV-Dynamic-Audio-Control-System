@@ -158,6 +158,142 @@ uint16_t READ_BATTERY_VOLTAGE() {
 // without the charger affecting the reading.
 // ============================================================================
 
+// ============================================================================
+// CHARGING THRESHOLD STORAGE
+// Stores both thresholds as one validated, wear-levelled EEPROM record.
+// The valid marker is written last so an interrupted write cannot replace
+// the previous valid settings.
+// ============================================================================
+
+bool VALIDATE_CHARGING_THRESHOLDS(uint16_t startVoltage, uint16_t stopVoltage) {
+
+  return startVoltage >= MIN_START_CHARGING_VOLTAGE &&
+         startVoltage <= MAX_START_CHARGING_VOLTAGE &&
+         stopVoltage >= MIN_STOP_CHARGING_VOLTAGE &&
+         stopVoltage <= MAX_STOP_CHARGING_VOLTAGE &&
+         (uint16_t)(stopVoltage - startVoltage) >= MIN_CHARGING_THRESHOLD_GAP;
+}
+
+// Each EEPROM record contains:
+// Generation, start low/high, stop low/high, checksum, valid marker.
+
+uint8_t CHARGING_THRESHOLDS_CHECKSUM(
+  uint8_t generation,
+  uint16_t startVoltage,
+  uint16_t stopVoltage) {
+
+  return (uint8_t)(0x5A ^ generation ^
+                   lowByte(startVoltage) ^ highByte(startVoltage) ^
+                   lowByte(stopVoltage) ^ highByte(stopVoltage));
+}
+
+bool READ_CHARGING_THRESHOLDS_SLOT(
+  uint8_t slot,
+  uint8_t& generation,
+  uint16_t& startVoltage,
+  uint16_t& stopVoltage) {
+
+  const uint16_t address = EEPROM_CHARGING_THRESHOLDS_BASE +
+                           (uint16_t)slot * EEPROM_CHARGING_THRESHOLDS_SLOT_SIZE;
+
+  if (EEPROM.read(address + 6) != 0xA5) return false;
+
+  generation = EEPROM.read(address);
+  startVoltage = (uint16_t)EEPROM.read(address + 1) |
+                 ((uint16_t)EEPROM.read(address + 2) << 8);
+  stopVoltage = (uint16_t)EEPROM.read(address + 3) |
+                ((uint16_t)EEPROM.read(address + 4) << 8);
+
+  if (EEPROM.read(address + 5) !=
+      CHARGING_THRESHOLDS_CHECKSUM(generation, startVoltage, stopVoltage)) return false;
+
+  return VALIDATE_CHARGING_THRESHOLDS(startVoltage, stopVoltage);
+}
+
+int8_t FIND_NEWEST_CHARGING_THRESHOLDS_SLOT(uint8_t& newestGeneration) {
+
+  int8_t newestSlot = -1;
+  newestGeneration = 0;
+
+  for (uint8_t slot = 0; slot < EEPROM_CHARGING_THRESHOLDS_SLOT_COUNT; slot++) {
+
+    uint8_t generation;
+    uint16_t startVoltage, stopVoltage;
+
+    if (!READ_CHARGING_THRESHOLDS_SLOT(slot, generation, startVoltage, stopVoltage)) continue;
+
+    if (newestSlot < 0 || (int8_t)(generation - newestGeneration) > 0) {
+      newestSlot = slot;
+      newestGeneration = generation;
+    }
+  }
+
+  return newestSlot;
+}
+
+// Restore the newest valid charging thresholds from EEPROM.
+// Defaults remain active if no valid record has been stored yet.
+
+void RESTORE_CHARGING_THRESHOLDS() {
+
+  uint8_t generation;
+  int8_t newestSlot = FIND_NEWEST_CHARGING_THRESHOLDS_SLOT(generation);
+
+  if (newestSlot < 0) return;
+
+  READ_CHARGING_THRESHOLDS_SLOT(
+    newestSlot, generation, START_CHARGING_VOLTAGE, STOP_CHARGING_VOLTAGE);
+}
+
+// Save a new pair of thresholds without disturbing the previous valid record.
+
+bool STORE_CHARGING_THRESHOLDS(uint16_t startVoltage, uint16_t stopVoltage) {
+
+  if (!VALIDATE_CHARGING_THRESHOLDS(startVoltage, stopVoltage)) return false;
+
+  uint8_t newestGeneration;
+  int8_t newestSlot = FIND_NEWEST_CHARGING_THRESHOLDS_SLOT(newestGeneration);
+
+  if (newestSlot >= 0) {
+    uint16_t storedStart, storedStop;
+    uint8_t generation;
+
+    if (READ_CHARGING_THRESHOLDS_SLOT(newestSlot, generation, storedStart, storedStop) &&
+        storedStart == startVoltage && storedStop == stopVoltage) return true;
+  }
+
+  uint8_t targetSlot = newestSlot < 0 ? 0 :
+                      (uint8_t)((newestSlot + 1) % EEPROM_CHARGING_THRESHOLDS_SLOT_COUNT);
+  uint8_t nextGeneration = newestSlot < 0 ? 0 : (uint8_t)(newestGeneration + 1);
+
+  const uint16_t address = EEPROM_CHARGING_THRESHOLDS_BASE +
+                           (uint16_t)targetSlot * EEPROM_CHARGING_THRESHOLDS_SLOT_SIZE;
+
+  // Invalidate the selected slot before writing its new data.
+  EEPROM.update(address + 6, 0x00);
+
+  EEPROM.update(address, nextGeneration);
+  EEPROM.update(address + 1, lowByte(startVoltage));
+  EEPROM.update(address + 2, highByte(startVoltage));
+  EEPROM.update(address + 3, lowByte(stopVoltage));
+  EEPROM.update(address + 4, highByte(stopVoltage));
+  EEPROM.update(address + 5,
+                CHARGING_THRESHOLDS_CHECKSUM(nextGeneration, startVoltage, stopVoltage));
+
+  // Write the valid marker last. The previous record remains valid until this point.
+  EEPROM.update(address + 6, 0xA5);
+
+  uint8_t verifyGeneration;
+  uint16_t verifyStart, verifyStop;
+  int8_t verifySlot = FIND_NEWEST_CHARGING_THRESHOLDS_SLOT(verifyGeneration);
+
+  return verifySlot == targetSlot &&
+         READ_CHARGING_THRESHOLDS_SLOT(verifySlot, verifyGeneration, verifyStart, verifyStop) &&
+         verifyStart == startVoltage && verifyStop == stopVoltage;
+}
+
+// ============================================================================
+
 void BATTERY_CHARGE_CHECK() {
   unsigned long CURRENT_MILLIS = millis();
 
