@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TV Controller – RGB Feedback Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#11151b;--panel:#1b222c;--panel2:#222c38;--line:#354252;--text:#edf2f7;--muted:#a9b5c3;--accent:#64b5f6;--good:#63d69a;--bad:#ff7777}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+main{max-width:1050px;margin:28px auto;padding:0 18px 36px}
+h1{font-size:25px;margin:0 0 5px}h2{font-size:17px;margin:0 0 14px}
+.sub{color:var(--muted);margin:0 0 22px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:18px;margin:14px 0}
+.connection{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button,select,input{font:inherit}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:#174b70;border-color:#2675a8}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=text],input[type=number]{background:#10161e;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px}
+.status{margin-left:auto;color:var(--muted);display:flex;align-items:center;gap:8px}
+.battery-panel{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.battery-icon{position:relative;width:48px;height:25px;border:2px solid #9aa8b7;border-radius:5px;padding:3px;flex:0 0 auto}
+.battery-icon:after{content:'';position:absolute;right:-6px;top:6px;width:4px;height:9px;background:#9aa8b7;border-radius:0 2px 2px 0}
+.battery-fill{height:100%;width:0;background:#8793a1;border-radius:2px;transition:width .25s,background .25s}
+.battery-info{min-width:130px}
+.battery-voltage{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.battery-message{color:var(--muted);font-size:13px}
+.battery-tag{margin-left:auto;color:var(--muted);font-size:12px;border:1px solid var(--line);border-radius:20px;padding:5px 10px}
+.battery-tag.good{color:var(--good);border-color:#3b8061}
+.battery-tag.warn{color:#ffc66d;border-color:#8a6937}
+.battery-tag.low{color:var(--bad);border-color:#884848}
+.dot{width:9px;height:9px;border-radius:50%;background:#8793a1;display:inline-block}
+.dot.ok{background:var(--good)}.dot.err{background:var(--bad)}
+.editor{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);gap:18px}
+.channel{display:grid;grid-template-columns:22px 1fr 58px;gap:10px;align-items:center;margin:15px 0}
+.channel label{font-weight:700}.channel input[type=range]{width:100%;accent-color:var(--accent)}
+.channel input[type=number]{width:58px;text-align:center;padding:6px}
+#preview{min-height:175px;border-radius:10px;border:1px solid #ffffff30;display:flex;align-items:end;justify-content:space-between;padding:14px;color:white;text-shadow:0 1px 3px #000;background:#000}
+.preview-meta{font-size:13px}
+.color-picker{display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:12px;max-width:430px;align-items:stretch}
+#svPicker,#huePicker{display:block;width:100%;height:220px;border:1px solid #ffffff35;border-radius:8px;cursor:crosshair;touch-action:none}
+#huePicker{width:28px}
+.picker-caption{display:flex;justify-content:space-between;gap:10px;margin-top:7px}
+.hexrow{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.hexrow input{width:105px;text-transform:uppercase}
+.arduino-code-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.arduino-code{flex:1 1 280px;min-width:0;margin:0;padding:10px 12px;background:#0b1016;border:1px solid var(--line);border-radius:8px;color:#b8d9ff;font:14px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-x:auto;white-space:pre}
+.small{color:var(--muted);font-size:13px}
+.palette-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.palette-head select{min-width:160px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:9px}
+.swatch{padding:0;overflow:hidden;text-align:left;background:var(--panel2)}
+.swatch-color{height:48px;border-bottom:1px solid #ffffff25}
+.swatch-name{display:block;padding:6px 7px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.custom-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+#log{height:105px;overflow:auto;background:#0b1016;border:1px solid var(--line);border-radius:8px;padding:9px;font:12px/1.5 ui-monospace,monospace;color:#b8c7d8;white-space:pre-wrap}
+@media(max-width:720px){.editor{grid-template-columns:1fr}.status{margin-left:0;width:100%}main{margin-top:18px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>TV Controller – RGB Feedback Studio</h1>
+  <p class="sub">Adjust the RGB feedback LED, choose a preset colour, or save your own palette.</p>
+
+  <section class="panel">
+    <div class="connection">
+      <button class="primary" id="connect">Connect to Arduino</button>
+      <button id="disconnect" disabled>Disconnect</button>
+      <label class="small" for="baud">Baud rate</label>
+      <select id="baud">
+        <option>9600</option><option selected>19200</option><option>38400</option>
+        <option>57600</option><option>115200</option>
+      </select>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Not connected</span></div>
+    </div>
+    <p class="small" style="margin:12px 0 0">Use Chrome or Edge on a computer. Close PuTTY/Serial Monitor before connecting; only one program can normally own the COM port.</p>
+  </section>
+
+  <section class="panel battery-panel" aria-label="Battery status">
+    <div class="battery-icon" aria-hidden="true"><div class="battery-fill" id="batteryFill"></div></div>
+    <div class="battery-info">
+      <div class="battery-voltage" id="batteryVoltage">— V</div>
+      <div class="battery-message" id="batteryMessage">Waiting for data</div>
+    </div>
+    <span class="battery-tag" id="batteryTag">Not available</span>
+    <button id="refreshBattery" disabled>Refresh</button>
+  </section>
+
+  <section class="panel">
+    <h2>Colour picker</h2>
+    <div class="color-picker">
+      <canvas id="svPicker" width="360" height="220" aria-label="Select colour saturation and brightness"></canvas>
+      <canvas id="huePicker" width="28" height="220" aria-label="Select hue"></canvas>
+    </div>
+    <div class="picker-caption small"><span>Drag inside the large area to choose the colour.</span><span>Drag the strip to change hue.</span></div>
+  </section>
+
+  <section class="panel editor">
+    <div>
+      <h2>RGB values</h2>
+      <div class="channel"><label style="color:#ff6666">R</label><input id="r" type="range" min="0" max="255" value="255"><input id="rn" type="number" min="0" max="255" value="255"></div>
+      <div class="channel"><label style="color:#70df8b">G</label><input id="g" type="range" min="0" max="255" value="80"><input id="gn" type="number" min="0" max="255" value="80"></div>
+      <div class="channel"><label style="color:#70aaff">B</label><input id="b" type="range" min="0" max="255" value="20"><input id="bn" type="number" min="0" max="255" value="20"></div>
+      <div class="hexrow">
+        <label for="hex">HEX</label><input id="hex" type="text" value="#FF5014" maxlength="7">
+        <button id="applyHex">Apply HEX</button>
+      </div>
+      <div class="arduino-code-row">
+        <pre class="arduino-code"><code id="arduinoCode">led.setColor(255, 80, 20);</code></pre>
+        <button id="copyCode">Copy Code</button>
+      </div>
+      <p class="small">This statement updates with the selected colour. Copy it into your Arduino sketch to make the change permanent.</p>
+    </div>
+    <div>
+      <h2>Live preview</h2>
+      <div id="preview"><strong id="previewHex">#FF5014</strong><span class="preview-meta" id="previewRgb">R 255 · G 80 · B 20</span></div>
+      <p class="small">Preview is a screen colour approximation; LED brightness and colour may differ.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="palette-head">
+      <h2 style="margin:0">Colour palette</h2>
+      <select id="palette">
+        <option value="basic">Basic</option>
+        <option value="warm">Warm</option>
+        <option value="cool">Cool</option>
+        <option value="pastel">Pastel</option>
+        <option value="white">Whites & greys</option>
+        <option value="custom">My saved colours</option>
+      </select>
+    </div>
+    <div class="swatches" id="swatches"></div>
+    <div class="custom-row">
+      <button id="saveColour">Save current colour to my palette</button>
+      <button id="clearCustom">Clear saved palette</button>
+      <span class="small" id="customCount"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Serial activity</h2>
+    <div id="log">Waiting for connection…</div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const channels = ['r','g','b'];
+  const presets = {
+    basic:[['Red','#FF0000'],['Green','#00FF00'],['Blue','#0000FF'],['Yellow','#FFFF00'],['Cyan','#00FFFF'],['Magenta','#FF00FF'],['Orange','#FF8000'],['Purple','#8000FF'],['White','#FFFFFF'],['Black','#000000']],
+    warm:[['Warm white','#FFD6A1'],['Amber','#FFBF00'],['Gold','#FFC000'],['Orange','#FF7800'],['Coral','#FF6F61'],['Red','#D71920'],['Salmon','#FA8072'],['Peach','#FFCBA4']],
+    cool:[['Ice blue','#BDEBFF'],['Sky blue','#70CFFF'],['Blue','#246BFD'],['Deep blue','#142B8C'],['Cyan','#00D5E8'],['Teal','#008C8C'],['Mint','#75E6C2'],['Violet','#8055C7']],
+    pastel:[['Pastel pink','#FFD1DC'],['Lavender','#DCCBFF'],['Baby blue','#BFE7FF'],['Mint','#C7F5D0'],['Peach','#FFD6BA'],['Lemon','#FFF4B8'],['Lilac','#E6C8F0'],['Pastel teal','#B9E5DF']],
+    white:[['Pure white','#FFFFFF'],['Warm white','#FFF1D6'],['Cool white','#E6F2FF'],['Soft white','#D8D8D8'],['Light grey','#B0B0B0'],['Medium grey','#777777'],['Dark grey','#383838'],['Black','#000000']]
+  };
+  let port=null, reader=null, writer=null, keepReading=false, sendTimer=null, heartbeatTimer=null, editorReady=false;
+  let pickerHue=0, pickerSaturation=1, pickerValue=1, pickerUpdating=false;
+  const log = message => { const el=$('log'); el.textContent += '\n'+message; el.scrollTop=el.scrollHeight; };
+  const rgb = () => channels.map(c => Number($(c).value));
+  const hexOf = ([r,g,b]) => '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
+  const setStatus = (s,kind='') => { $('status').textContent=s; $('dot').className='dot '+kind; };
+  const setBatteryStatus = (voltage=null) => {
+    const fill=$('batteryFill'),tag=$('batteryTag');
+    if(voltage===null || !Number.isFinite(voltage)){
+      $('batteryVoltage').textContent='— V';
+      $('batteryMessage').textContent=writer?'Waiting for data':'Disconnected';
+      fill.style.width='0%';fill.style.background='#8793a1';
+      tag.textContent='Not available';tag.className='battery-tag';
+      return;
+    }
+    const level=Math.max(0,Math.min(100,(voltage-3.45)/(4.15-3.45)*100));
+    const state=voltage<=3.50?'Low battery':voltage<=3.56?'Battery getting low':'Voltage OK';
+    const colour=voltage<=3.50?'#ff7777':voltage<=3.56?'#ffc66d':'#63d69a';
+    $('batteryVoltage').textContent=voltage.toFixed(2)+' V';
+    $('batteryMessage').textContent=state+' · voltage indicator, not a capacity estimate';
+    fill.style.width=level+'%';fill.style.background=colour;
+    tag.textContent=state;tag.className='battery-tag '+(voltage<=3.50?'low':voltage<=3.56?'warn':'good');
+  };
+  const setRgb = (values, send=true) => {
+    values=values.map(v=>Math.max(0,Math.min(255,Math.round(Number(v)||0))));
+    channels.forEach((c,i)=>{$(c).value=values[i];$(c+'n').value=values[i];});
+    const hex=hexOf(values);
+    $('hex').value=hex;
+    $('preview').style.background=hex;
+    $('previewHex').textContent=hex;
+    $('previewRgb').textContent=`R ${values[0]} · G ${values[1]} · B ${values[2]}`;
+    $('arduinoCode').textContent=`led.setColor(${values.join(', ')});`;
+    if(send) queueSend();
+    if(typeof drawPicker==='function' && !pickerUpdating){pickerUpdating=true;updatePickerFromRgb(values);pickerUpdating=false;}
+  };
+  const queueSend = () => {
+    clearTimeout(sendTimer);
+    if(writer && editorReady) sendTimer=setTimeout(sendCurrent,70);
+  };
+  const sendLine = async (line,show=true) => {
+    if(!writer) return;
+    try { await writer.write(new TextEncoder().encode(line+'\n')); if(show) log('> '+line); }
+    catch(e){ if(show) log('Write error: '+e.message); setStatus('Connection error','err'); }
+  };
+  const sendCurrent = () => { if(editorReady) sendLine('RGB_SET,'+rgb().join(',')); };
+  const parseLine = line => {
+    line=line.trim();
+    if(!line) return;
+    const batteryMatch=line.match(/Battery state:\s*([0-9]+(?:\.[0-9]+)?)\s*V/i);
+    if(batteryMatch){setBatteryStatus(Number(batteryMatch[1]));return;}
+    if(line==='RGB_EDITOR_ACTIVE'){
+      const wasReady=editorReady;
+      editorReady=true;
+      $('refreshBattery').disabled=false;
+      setStatus('RGB editor active','ok');
+      if(!wasReady) sendLine('RGB_GET');
+      return;
+    }
+    if(line==='RGB_EDITOR_INACTIVE'){
+      log('< '+line);
+      editorReady=false;
+      $('refreshBattery').disabled=true;
+      if(port) setStatus('Connected — waiting for Arduino');
+      return;
+    }
+    const p=line.split(',');
+    if(p[0]==='RGB_STATE' && p.length===4){
+      const vals=p.slice(1).map(Number);
+      if(vals.every(v=>Number.isInteger(v)&&v>=0&&v<=255)) setRgb(vals,false);
+      return;
+    }
+    log('< '+line);
+  };
+  const readLoop = async () => {
+    let buffer='';
+    keepReading=true;
+    try {
+      while(keepReading && port.readable){
+        reader=port.readable.getReader();
+        try {
+          while(keepReading){
+            const {value,done}=await reader.read();
+            if(done) break;
+            buffer += new TextDecoder().decode(value,{stream:true});
+            let n;
+            while((n=buffer.indexOf('\n'))>=0){parseLine(buffer.slice(0,n));buffer=buffer.slice(n+1);}
+            if(buffer.length>512) buffer='';
+          }
+        } finally { reader.releaseLock(); reader=null; }
+      }
+    } catch(e){ if(keepReading) log('Read error: '+e.message); }
+  };
+  async function connect(){
+    if(!('serial' in navigator)){alert('Web Serial is not available in this browser. Use Chrome or Edge on a computer.');return;}
+    try{
+      port=await navigator.serial.requestPort();
+      await port.open({baudRate:Number($('baud').value)});
+      writer=port.writable.getWriter();
+      editorReady=false;
+      $('connect').disabled=true;$('disconnect').disabled=false;$('refreshBattery').disabled=true;
+      setStatus('Connected — waiting for Arduino');$('log').textContent='Connected.';
+      setBatteryStatus();
+      readLoop();
+      await sendLine('RGB_EDITOR_HEARTBEAT',false);
+      heartbeatTimer=setInterval(()=>{ if(writer) sendLine('RGB_EDITOR_HEARTBEAT',false); },2000);
+    }catch(e){log('Connection error: '+e.message);setStatus('Not connected','err');}
+  }
+  async function disconnect(){
+    clearInterval(heartbeatTimer);heartbeatTimer=null;
+    if(writer && editorReady) await sendLine('RGB_EDITOR_OFF',false);
+    editorReady=false;
+    keepReading=false;
+    try{if(reader) await reader.cancel();}catch(e){}
+    try{if(writer){writer.releaseLock();writer=null;}}catch(e){}
+    try{if(port){await port.close();port=null;}}catch(e){}
+    $('connect').disabled=false;$('disconnect').disabled=true;$('refreshBattery').disabled=true;
+    setStatus('Not connected');
+    setBatteryStatus();
+  }
+  const customKey='arduinoRgbCustomPaletteV1';
+  const loadCustom=()=>{try{return JSON.parse(localStorage.getItem(customKey)||'[]')}catch(e){return []}};
+  const saveCustom=list=>localStorage.setItem(customKey,JSON.stringify(list));
+  function renderPalette(){
+    const key=$('palette').value;
+    let list=key==='custom'?loadCustom():presets[key];
+    $('swatches').innerHTML='';
+    list.forEach(([name,hex],i)=>{
+      const btn=document.createElement('button');btn.className='swatch';btn.title=name+' '+hex;
+      const colour=document.createElement('div');colour.className='swatch-color';colour.style.background=hex;
+      const label=document.createElement('span');label.className='swatch-name';label.textContent=name;
+      btn.append(colour,label);btn.addEventListener('click',()=>setRgb(hexToRgb(hex)));$('swatches').append(btn);
+    });
+    $('customCount').textContent=loadCustom().length+' saved';
+    $('clearCustom').disabled=key!=='custom' || !list.length;
+  }
+  const hexToRgb=hex=>{const m=/^#?([0-9a-f]{6})$/i.exec(hex);return m?[parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)]:null;};
+  const hsvToRgb=(h,s,v)=>{
+    const c=v*s, x=c*(1-Math.abs((h/60)%2-1)), m=v-c;
+    let rgb=h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];
+    return rgb.map(n=>Math.round((n+m)*255));
+  };
+  const svCanvas=$('svPicker'), hueCanvas=$('huePicker');
+  const svContext=svCanvas.getContext('2d'), hueContext=hueCanvas.getContext('2d');
+  function drawPicker(){
+    const w=svCanvas.width,h=svCanvas.height;
+    svContext.clearRect(0,0,w,h);
+    svContext.fillStyle=`hsl(${pickerHue},100%,50%)`;svContext.fillRect(0,0,w,h);
+    let gradient=svContext.createLinearGradient(0,0,w,0);
+    gradient.addColorStop(0,'#fff');gradient.addColorStop(1,'rgba(255,255,255,0)');
+    svContext.fillStyle=gradient;svContext.fillRect(0,0,w,h);
+    gradient=svContext.createLinearGradient(0,0,0,h);
+    gradient.addColorStop(0,'rgba(0,0,0,0)');gradient.addColorStop(1,'#000');
+    svContext.fillStyle=gradient;svContext.fillRect(0,0,w,h);
+    const x=pickerSaturation*w,y=(1-pickerValue)*h;
+    svContext.beginPath();svContext.arc(x,y,7,0,Math.PI*2);svContext.strokeStyle='#000';svContext.lineWidth=3;svContext.stroke();
+    svContext.beginPath();svContext.arc(x,y,7,0,Math.PI*2);svContext.strokeStyle='#fff';svContext.lineWidth=1.5;svContext.stroke();
+    const hg=hueContext.createLinearGradient(0,0,0,hueCanvas.height);
+    for(let i=0;i<=6;i++)hg.addColorStop(i/6,`hsl(${i*60},100%,50%)`);
+    hueContext.fillStyle=hg;hueContext.fillRect(0,0,hueCanvas.width,hueCanvas.height);
+    const hy=pickerHue/360*hueCanvas.height;
+    hueContext.strokeStyle='#fff';hueContext.lineWidth=3;hueContext.strokeRect(1,Math.max(1,Math.min(hueCanvas.height-5,hy-2)),hueCanvas.width-2,4);
+  }
+  function updateFromPicker(){setRgb(hsvToRgb(pickerHue,pickerSaturation,pickerValue));drawPicker();}
+  function updatePickerFromRgb(values){
+    const [r,g,b]=values.map(v=>v/255),max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+    let h=0;
+    if(d){if(max===r)h=60*(((g-b)/d)%6);else if(max===g)h=60*((b-r)/d+2);else h=60*((r-g)/d+4);}
+    if(h<0)h+=360;
+    pickerHue=h;pickerSaturation=max===0?0:d/max;pickerValue=max;
+    drawPicker();
+  }
+  function bindPicker(canvas,kind){
+    let dragging=false;
+    const selectAt=e=>{
+      const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),y=Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height));
+      if(kind==='hue')pickerHue=x*0+y*360;
+      else{pickerSaturation=x;pickerValue=1-y;}
+      updateFromPicker();
+    };
+    canvas.addEventListener('pointerdown',e=>{dragging=true;canvas.setPointerCapture(e.pointerId);selectAt(e);});
+    canvas.addEventListener('pointermove',e=>{if(dragging)selectAt(e);});
+    canvas.addEventListener('pointerup',()=>{dragging=false;});
+    canvas.addEventListener('pointercancel',()=>{dragging=false;});
+  }
+  bindPicker(svCanvas,'sv');bindPicker(hueCanvas,'hue');
+  channels.forEach(c=>{
+    $(c).addEventListener('input',()=>setRgb(rgb()));
+    $(c+'n').addEventListener('change',()=>setRgb(channels.map(k=>k===c?$(c+'n').value:$(k).value)));
+  });
+  $('hex').addEventListener('keydown',e=>{if(e.key==='Enter')$('applyHex').click();});
+  $('applyHex').addEventListener('click',()=>{const v=hexToRgb($('hex').value.trim());if(v)setRgb(v);else alert('Enter a valid 6-digit HEX colour, e.g. #FF8800.');});
+  $('copyCode').addEventListener('click',async()=>{
+    const code=$('arduinoCode').textContent;
+    const button=$('copyCode');
+    try{
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(code);
+      }else{
+        const temp=document.createElement('textarea');
+        temp.value=code;temp.style.position='fixed';temp.style.opacity='0';
+        document.body.appendChild(temp);temp.select();
+        const copied=document.execCommand('copy');temp.remove();
+        if(!copied) throw new Error('Clipboard access is unavailable');
+      }
+      button.textContent='Copied!';
+      setTimeout(()=>button.textContent='Copy Code',1200);
+    }catch(e){alert('Could not copy the code. Please select and copy it manually.');}
+  });
+  $('refreshBattery').addEventListener('click',()=>{if(editorReady)sendLine('RGB_GET');});
+  $('connect').addEventListener('click',connect);
+  $('disconnect').addEventListener('click',disconnect);
+  $('palette').addEventListener('change',renderPalette);
+  $('saveColour').addEventListener('click',()=>{
+    const list=loadCustom(),hex=hexOf(rgb());
+    if(list.some(x=>x[1]===hex)){alert('That colour is already saved.');return;}
+    list.push(['Custom '+(list.length+1),hex]);saveCustom(list);$('palette').value='custom';renderPalette();
+  });
+  $('clearCustom').addEventListener('click',()=>{
+    if(confirm('Delete all saved custom colours?')){saveCustom([]);renderPalette();}
+  });
+  navigator.serial?.addEventListener('disconnect',()=>{disconnect();});
+  setRgb([255,80,20],false);updatePickerFromRgb([255,80,20]);renderPalette();
+})();
+</script>
+</body>
+</html>
