@@ -190,9 +190,28 @@ When the browser connects, the Arduino automatically switches to RGB editing mod
 
 The browser sends a heartbeat periodically to keep the editing session active. A normal disconnect returns the controller to its regular operating mode immediately. If the browser closes unexpectedly, the USB cable is unplugged, or communication is lost, the Arduino detects the missing heartbeat and automatically restores normal operation after **8 seconds**.
 
-The editor provides an HSV color picker, RGB and HEX value entry, a live color preview, preset and custom palettes, battery-voltage display, and serial activity log. Color changes are sent to the Arduino and applied to the RGB LED in real time.
+The editor provides an HSV color picker, RGB sliders and numeric fields, HEX value entry, a live color preview, preset and custom palettes, battery-voltage display, and serial activity log. Changes made with the picker, RGB controls, HEX field, or palette are sent to the Arduino automatically and applied to the RGB LED in real time. There is no separate **Send to Arduino** button because color changes are transmitted as they are made.
+
+### How to use the RGB color editor
+
+1. Open `Arduino_RGB_Colour_Editor.html` in **Google Chrome or Microsoft Edge** on a computer.
+2. Connect the Arduino to the computer through its USB-to-serial connection. Close the Arduino Serial Monitor or any other program using the same COM port.
+3. Click **Connect to Arduino**, select the Arduino's serial/COM port, and connect using **19200 baud**.
+4. Once the editor reports that it is active, choose a color using the HSV picker, RGB controls, HEX field, or one of the color palettes. The LED updates automatically; no confirmation or send button is required.
+5. The editor displays the equivalent Arduino statement using the selected RGB values, for example:
+
+   ```cpp
+   led.setColor(198, 80, 20);
+   ```
+
+6. Click **Copy Code** to copy the statement, then paste it into the appropriate place in the Arduino sketch wherever that LED color should be set. The editor changes the LED in the running firmware, but it does **not** modify the `.ino` source file. Copying the statement is how the selected color can be made part of the sketch.
+7. Click **Disconnect** when finished. The controller returns to normal operation.
+
+The code statement is updated whenever the selected color changes, and **Copy Code** can be used even when the Arduino is not connected. The displayed statement is only a convenient source-code snippet; it is not sent as a command over the serial connection.
 
 The serial connection uses **19200 baud**. The editor communicates using `RGB_GET` to request the current color and `RGB_SET,R,G,B` to set a new color. The Arduino reports the current values with `RGB_STATE,R,G,B`.
+
+No remote-control button is needed to enter or leave RGB editing mode. While the editor is connected, normal IR remote processing, automatic audio control, and ordinary LED feedback are suspended. Disconnecting the editor restores normal operation. If the browser closes unexpectedly or serial communication is lost, the Arduino restores normal operation after the **8-second heartbeat timeout**.
 
 ### Battery voltage display
 
