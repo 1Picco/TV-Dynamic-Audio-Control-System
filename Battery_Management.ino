@@ -171,6 +171,7 @@ bool VALIDATE_CHARGING_THRESHOLDS(uint16_t startVoltage, uint16_t stopVoltage) {
          startVoltage <= MAX_START_CHARGING_VOLTAGE &&
          stopVoltage >= MIN_STOP_CHARGING_VOLTAGE &&
          stopVoltage <= MAX_STOP_CHARGING_VOLTAGE &&
+         stopVoltage > startVoltage &&
          (uint16_t)(stopVoltage - startVoltage) >= MIN_CHARGING_THRESHOLD_GAP;
 }
 
