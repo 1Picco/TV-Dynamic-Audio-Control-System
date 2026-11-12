@@ -60,10 +60,39 @@ bool PARSE_RGB_SERIAL_VALUE(const char* text, byte& value) {
 // ============================================================================
 // Process a complete RGB serial command
 // ============================================================================
-
 void PROCESS_RGB_SERIAL_COMMAND() {
 
   RGB_SERIAL_BUFFER[RGB_SERIAL_LENGTH] = '\0';
+
+  if (strcmp(RGB_SERIAL_BUFFER, "RGB_EDITOR_HEARTBEAT") == 0) {
+
+    RGB_EDITOR_LAST_HEARTBEAT = millis();
+
+    if (REMOTE_CONTROL_MODE_ACTIVE) {
+      REMOTE_CONTROL_MODE_ACTIVE = false;
+      RESET_FEEDBACK_TIMERS();
+      FEEDBACK_LED_ACTIVE = false;
+      FEEDBACK_OFF_ACTIVE = false;
+      led.setColor(RED_INTENSITY, GREEN_INTENSITY, BLUE_INTENSITY);
+    }
+
+    Serial.println(F("RGB_EDITOR_ACTIVE"));
+    PRINT_RGB_SERIAL_STATE();
+    return;
+  }
+
+  if (strcmp(RGB_SERIAL_BUFFER, "RGB_EDITOR_OFF") == 0) {
+
+    if (!REMOTE_CONTROL_MODE_ACTIVE) {
+      REMOTE_CONTROL_MODE_ACTIVE = true;
+      RESET_FEEDBACK_TIMERS();
+      FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
+    }
+
+    return;
+  }
+
+  if (REMOTE_CONTROL_MODE_ACTIVE) return;
 
   if (strcmp(RGB_SERIAL_BUFFER, "RGB_GET") == 0) {
 
