@@ -16,7 +16,6 @@
    along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-
 // TV Dynamic Audio Control System
 // This Arduino project automatically adjusts TV volume based on audio levels
 // and provides IR remote control functionality for Samsung TVs
@@ -174,6 +173,8 @@ static char INPUT_BUFFER[4] = "";
 static byte SELECTED_COLOR = 0;
 static bool AWAITING_CONFIRMATION = false;
 static bool REMOTE_CONTROL_MODE_ACTIVE = true;
+const unsigned long RGB_EDITOR_HEARTBEAT_TIMEOUT = 5000;
+unsigned long RGB_EDITOR_LAST_HEARTBEAT = 0;
 
 // ============================================================================
 // AUDIO CONTROL VARIABLES
@@ -501,6 +502,8 @@ void DELAYED_AUTO_POWER_OFF() {
 
 void HANDLE_FEEDBACK() {
 
+  if (!REMOTE_CONTROL_MODE_ACTIVE) return;
+
   uint16_t voltage = VOLTAGE;
 
   // 1. Run deadband pulse pattern if active
@@ -513,10 +516,10 @@ void HANDLE_FEEDBACK() {
   // 3. Feedback timer active for shorter time if battery low and only if not charging.
   if (!CHARGING_ACTIVE && VOLUME_CONTROL_ACTIVE && !MUTED) {
     if (voltage < 3500) {
-      FEEDBACK_ON(SECONDS(10));
+      FEEDBACK_ON(SECONDS(5));
       FEEDBACK_OFF(SECONDS(2));
     } else {
-      FEEDBACK_ON(SECONDS(30));
+      FEEDBACK_ON(SECONDS(20));
       FEEDBACK_OFF(SECONDS(1));
     }
   }
@@ -526,6 +529,7 @@ void HANDLE_FEEDBACK() {
 // Handle IR reception, filtering and repeat timeout
 // ============================================================================
 void HANDLE_IR() {
+  if (!REMOTE_CONTROL_MODE_ACTIVE) return;
 
   if (irrecv.decode(&results)) {
 
@@ -534,11 +538,25 @@ void HANDLE_IR() {
       return;
     }
 
-    FUNCTION_MODE_TOGGLE();
+    REMOTE_CONTROL_MODE();
+
     irrecv.resume();
     delay(MS(5));
   }
 
+/*
+  if (irrecv.decode(&results)) {
+
+    if (!SIGNAL_FILTER()) {
+      irrecv.resume();
+      return;
+    }
+
+    if (FILTERED_CODE != 0xBE) FUNCTION_MODE_TOGGLE();
+    irrecv.resume();
+    delay(MS(5));
+  }
+*/
   // Check for IR repeat timeout (2 second)
   //if (IR_CODE_REPEATING && (millis() - LAST_IR_SIGNAL_TIME) > SECONDS(2)) {
   if ((millis() - LAST_IR_SIGNAL_TIME) > SECONDS(2)) {
@@ -554,6 +572,7 @@ void HANDLE_IR() {
 // Handle automatic audio control and volume-control feedback
 // ============================================================================
 void HANDLE_AUDIO_CONTROL() {
+  if (!REMOTE_CONTROL_MODE_ACTIVE) return;
 
   if (MUTED)
     // Microphone listening disabled - show volume-control feedback pattern
@@ -571,9 +590,17 @@ void HANDLE_AUDIO_CONTROL() {
 // ============================================================================
 void HANDLE_STATUS() {
 
-  if (!REMOTE_CONTROL_MODE_ACTIVE) {
-    HANDLE_RGB_SERIAL();
-  } else if (SERIAL_DATA_PRINT_ACTIVE) {
+  HANDLE_RGB_SERIAL();
+
+  if (!REMOTE_CONTROL_MODE_ACTIVE && millis() - RGB_EDITOR_LAST_HEARTBEAT >= RGB_EDITOR_HEARTBEAT_TIMEOUT) {
+
+    REMOTE_CONTROL_MODE_ACTIVE = true;
+    RESET_FEEDBACK_TIMERS();
+    FEEDBACK_MODE(BATTERY_VOLTAGE_STATUS);
+    Serial.println(F("RGB_EDITOR_INACTIVE"));
+  }
+
+  if (REMOTE_CONTROL_MODE_ACTIVE && SERIAL_DATA_PRINT_ACTIVE) {
     // Beep every 5 minutes while serial-data print is active
     MY_TONE_REPEAT(3700, 30, 2, MINUTES(5));
   }
