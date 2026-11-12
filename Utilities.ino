@@ -330,44 +330,8 @@ void READ_ANALOG_DATA(bool READ_NOW) {
 }
 
 // ============================================================================
-// FUNCTION MODE TOGGLE
+// Store data to EEPROM
 // ============================================================================
-// Toggles between remote-control mode and RGB color-edit mode.
-// Button 0xBE is used only for switching modes; all other codes are passed
-// to the handler for the currently active mode.
-
-void FUNCTION_MODE_TOGGLE() {
-
-  // Toggle mode when button 0xBE is received.
-  if (FILTERED_CODE == 0xBE) {
-    REMOTE_CONTROL_MODE_ACTIVE = !REMOTE_CONTROL_MODE_ACTIVE;
-
-    if (REMOTE_CONTROL_MODE_ACTIVE) {
-      // Enter remote-control mode.
-      // Reset feedback state and prepare the first RGB feedback display.
-      MY_TONE(4000, -350, 30, 2);
-      RESET_FEEDBACK_TIMERS();
-      led.flash(220, 220, 200, 30, 100, 2);
-
-    } else {
-      // Enter RGB color-edit mode.
-      // Disable normal serial and LED feedback so the selected color can be edited.
-      SERIAL_DATA_PRINT_ACTIVE = false;
-      FEEDBACK_LED_ACTIVE = false;
-      MY_TONE(3300, +350, 30, 2);
-      delay(MS(150));
-    }
-
-    return;  // Mode-switch command has been handled; do not process it further.
-  }
-
-  // Process all other remote commands according to the active mode.
-  if (REMOTE_CONTROL_MODE_ACTIVE) {
-    REMOTE_CONTROL_MODE();
-  } else {
-    HANDLE_RGB_SERIAL();
-  }
-}
 
 // Find the newest slot of a setting. Returns -1 if all slots are empty.
 // Slots are written in order, so the newest one is the slot whose successor
